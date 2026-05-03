@@ -7,6 +7,10 @@ class Settings(BaseSettings):
     BACKEND_HOST: str
     BACKEND_PORT: int
 
+    SECRET_KEY: str
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    REFRESH_TOKEN_EXPIRE_DAYS: int
+
     CLIENT_HOST: str
     CLIENT_PORT: int
 

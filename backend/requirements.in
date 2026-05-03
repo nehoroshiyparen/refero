@@ -5,3 +5,5 @@ uvicorn[standart]
 pydantic-settings
 asyncpg
 alembic
+passlib
+python-jose

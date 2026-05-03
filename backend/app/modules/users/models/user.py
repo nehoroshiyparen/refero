@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from .role import Role
     from .author_profile import AuthorProfile
     from .reviewer_profile import ReviewerProfile
+    from app.modules.auth.models import RefreshToken
 
 class User(Base):
     __tablename__ = "users"
@@ -43,4 +44,8 @@ class User(Base):
     )
     reviewer_profile: Mapped["ReviewerProfile | None"] = relationship(
         back_populates="user", uselist=False
+    )
+
+    refresh_tokens = Mapped[list["RefreshToken"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
     )

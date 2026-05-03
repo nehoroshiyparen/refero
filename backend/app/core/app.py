@@ -1,5 +1,8 @@
 from fastapi import FastAPI
 from .config import settings
+from .deps import (
+    setup_handlers
+)
 
 class App:
     def __init__(self):
@@ -16,7 +19,7 @@ class App:
     Setups all dependencies for app
     """
     def _setup(self):
-        pass
+        setup_handlers(self.fastapi_app)
 
     """
     Starts up server

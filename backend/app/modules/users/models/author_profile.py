@@ -1,8 +1,13 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 import uuid
 from sqlalchemy import String, Text, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.infrastructure.database import Base
-from .user import User
+
+if TYPE_CHECKING:
+    from .user import User
 
 class AuthorProfile(Base):
     __tablename__ = "author_profiles"
