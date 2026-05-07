@@ -2,39 +2,42 @@ from typing import TypeVar, Generic, Type
 from sqlalchemy import select, insert, update, delete, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.infrastructure.database import Base
+from .query_builder import BaseQueryBuilder
 from .schemas import ListOptions, SearchOptions
 
 ModelType = TypeVar("ModelType", bound=Base)
 
 class BaseRepository(Generic[ModelType]):
+    builder_class = BaseQueryBuilder
+
     def __init__(self, model: Type[ModelType], session: AsyncSession):
         self._model = model
         self._session = session
     
-    async def get_by_id(self, id: int) -> ModelType | None:
-        stmt = select(self._model).where(self._model.id == id)
-        result = await self._session.execute(stmt)
+    def query(self):
+        return self.builder_class(self._model)
+    
+    async def get_by_id(self, id: int):
+        return await self.one(
+            self.query().where(
+                self._model.id == id
+            )
+        )
+    
+    async def one(self, builder):
+        result = await self._session.execute(
+            builder.build()
+        )
+
         return result.scalar_one_or_none()
     
-    async def get_list(self, options: ListOptions) -> list[ModelType]:
-        stmt = select(self._model).limit(options.limit).offset(options.offset)
-        result = await self._session.execute(stmt)
-        return result.scalars().all()
-    
-    async def get_one_by_filters(self, options: SearchOptions) -> ModelType | None:
-        stmt = self._build_filter_stmt(options)
-        
-        result = await self._session.execute(stmt)
-        return result.scalar_one_or_none()
-    
-    async def search_by_filters(self, options: SearchOptions) -> list[ModelType]:
-        stmt = self._build_filter_stmt(options)
+    async def many(self, builder):
+        result = await self._session.execute(
+            builder.build()
+        )
 
-        stmt = stmt.limit(options.limit).offset(options.offset)
-
-        result = await self._session.execute(stmt)
         return result.scalars().all()
-    
+
     async def create(self, data: dict) -> ModelType:
         stmt = insert(self._model).values(**data).returning(self._model)
         result = await self._session.execute(stmt)

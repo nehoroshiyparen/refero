@@ -1,45 +1,57 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime, timedelta
+
 from app.core.base import BaseService
-from app.infrastructure.database.base import SearchOptions
+
 from app.modules.users.repositories import UserRepository, User
 from .repository import TokenRepository, RefreshToken
+
 from app.core.exceptions import (
     Conflict,
     NotFound,
     Unauthorized,
 )
+
 from .schemas import (
     RegisterDTO,
-    AuthorizationPaylaod, 
+    AuthorizationPaylaod,
     LoginDTO
 )
+
 from .utils import (
-    hash_password, 
+    hash_password,
     verify_password,
-    generate_refresh_token, 
-    create_access_token, 
-    decode_access_token,
-    hash_refresh_token,
+    generate_refresh_token,
+    create_access_token,
 )
+
 
 class AuthService(BaseService):
     def __init__(self, session: AsyncSession):
         super().__init__(session)
-        self._token_repo: TokenRepository = TokenRepository(self._session)
-        self._user_repo: UserRepository = UserRepository(self._session)
 
-    async def register(self, data: RegisterDTO) -> AuthorizationPaylaod:
-        email_exists = await self._user_repo.get_one_by_filters(SearchOptions(
-            filters=[User.email == data.email]
-        ))
-        username_exists = await self._user_repo.get_one_by_filters(SearchOptions(
-            filters=[User.username == data.username]
-        ))
+        self._token_repo = TokenRepository(self._session)
+        self._user_repo = UserRepository(self._session)
+
+    async def register(
+        self,
+        data: RegisterDTO
+    ) -> AuthorizationPaylaod:
+
+        email_exists = await self._user_repo.one(
+            self._user_repo.query()
+                .where(User.email == data.email)
+        )
+
+        username_exists = await self._user_repo.one(
+            self._user_repo.query()
+                .where(User.username == data.username)
+        )
 
         details = {}
+
         if email_exists:
             details["email"] = "Already taken"
+
         if username_exists:
             details["username"] = "Already taken"
 
@@ -48,8 +60,6 @@ class AuthService(BaseService):
                 message="User already exists",
                 details=details
             )
-        
-        print("ПИЗДА КОРОВЫ И БЛЯДСКИЕ УШИ", data.password)
 
         user = await self._user_repo.create(
             data={
@@ -58,9 +68,15 @@ class AuthService(BaseService):
             }
         )
 
-        access_token = create_access_token(payload={"sub": str(user.id), "role": user.role_name.value})
+        access_token = create_access_token(
+            payload={
+                "sub": str(user.id),
+                "role": user.role_name.value
+            }
+        )
+
         refresh_token = generate_refresh_token()
-        
+
         await self._token_repo.create(
             data={
                 "user_id": user.id,
@@ -74,28 +90,39 @@ class AuthService(BaseService):
             refresh_token=refresh_token
         )
 
-    async def login(self, data: LoginDTO) -> AuthorizationPaylaod:
-        filters = []
+    async def login(
+        self,
+        data: LoginDTO
+    ) -> AuthorizationPaylaod:
+
+        builder = self._user_repo.query()
 
         if data.username:
-            filters.append(User.username == data.username)
-        if data.email:
-            filters.append(User.email == data.email)
+            builder.where(User.username == data.username)
 
-        user = await self._user_repo.get_one_by_filters(SearchOptions(
-            filters=filters
-        ))
+        if data.email:
+            builder.where(User.email == data.email)
+
+        user = await self._user_repo.one(builder)
+
         if not user:
-            raise NotFound(
-                "User not found"
-            )
-        
-        if not verify_password(data.password, user.hashed_password):
+            raise NotFound("User not found")
+
+        if not verify_password(
+            data.password,
+            user.hashed_password
+        ):
             raise Unauthorized("Wrong password")
-        
-        access_token = create_access_token(payload={"sub": str(user.id), "role": user.role_name.value})
+
+        access_token = create_access_token(
+            payload={
+                "sub": str(user.id),
+                "role": user.role_name.value
+            }
+        )
+
         refresh_token = generate_refresh_token()
-        
+
         await self._token_repo.create(
             data={
                 "user_id": user.id,
@@ -108,36 +135,50 @@ class AuthService(BaseService):
             access_token=access_token,
             refresh_token=refresh_token
         )
-            
-    async def logout(self, refresh_token: str) -> None:
-        filters = [RefreshToken.token_hash == refresh_token]
 
-        token = await self._token_repo.get_one_by_filters(SearchOptions(
-            filters=filters
-        ))
+    async def logout(
+        self,
+        refresh_token: str
+    ) -> None:
+
+        token = await self._token_repo.one(
+            self._token_repo.query()
+                .where(
+                    RefreshToken.token_hash == refresh_token
+                )
+        )
 
         if not token:
             raise NotFound("Session not found")
-        
+
         await self._token_repo.delete(token.id)
 
-        return
-    
     """
     Обновляет только access_token
     """
-    async def refresh(self, refresh_token: str):
-        filters = [RefreshToken.token_hash == refresh_token]
+    async def refresh(
+        self,
+        refresh_token: str
+    ):
 
-        token = await self._token_repo.get_one_by_filters(SearchOptions(
-            filters=filters
-        ))
+        token = await self._token_repo.one(
+            self._token_repo.query()
+                .where(
+                    RefreshToken.token_hash == refresh_token
+                )
+                .with_user()
+        )
 
         if not token:
             raise Unauthorized
-        
+
         role = token.user.role_name.value
-        
-        access_token = create_access_token(payload={"sub": str(token.user_id), "role": role})
+
+        access_token = create_access_token(
+            payload={
+                "sub": str(token.user_id),
+                "role": role
+            }
+        )
 
         return access_token
