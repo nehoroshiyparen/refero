@@ -5,5 +5,11 @@ uvicorn[standart]
 pydantic-settings
 asyncpg
 alembic
-passlib
 python-jose
+email-validator
+watchfiles
+pytest
+pytest-asyncio
+httpx
+aiosqlite
+passlib[bcrypt]

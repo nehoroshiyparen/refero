@@ -15,11 +15,11 @@ class RefreshToken(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4, )
 
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("user.id", ondelete="CASCADE"))
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
 
     token_hash: Mapped[str] = mapped_column(String, nullable=False, )
 
-    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, )
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     user: Mapped["User"] = relationship(back_populates="refresh_tokens")

@@ -2,7 +2,7 @@ PYTHON = .venv/Scripts/python.exe
 COMPOSE = docker compose -f ../docker-compose.yml
 EXEC = $(COMPOSE) exec backend
 
-.PHONY: add install
+.PHONY: add install remove
 
 venv:
 	python -m venv .venv

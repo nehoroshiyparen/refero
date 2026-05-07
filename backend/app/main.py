@@ -1,8 +1,8 @@
-from .core import App
+from .core.app import App
 
 app_instance = App()
 
 app = app_instance.fastapi_app
 
 if __name__ == "__main__":
-    app.start()
+    app_instance.start()

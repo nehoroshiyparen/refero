@@ -2,7 +2,7 @@ from typing import Type
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.infrastructure.database import get_session
+from app.infrastructure.database.session import get_session
 from .base import BaseService
 
 from .exceptions import (

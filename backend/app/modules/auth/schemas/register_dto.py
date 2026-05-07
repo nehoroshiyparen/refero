@@ -1,7 +1,7 @@
 from pydantic import BaseModel, EmailStr, field_validator
 import re
 
-class RegisterRequest(BaseModel):
+class RegisterDTO(BaseModel):
     username: str
     email: EmailStr
     full_name: str

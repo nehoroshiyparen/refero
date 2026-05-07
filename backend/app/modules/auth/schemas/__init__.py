@@ -1,6 +1,6 @@
-from .register_request import RegisterRequest
-from .register_paylaod import RegisterPaylaod
+from .register_dto import RegisterDTO
+from .authorization_paylaod import AuthorizationPaylaod
 
-from .login_request import LoginRequest
+from .login_dto import LoginDTO
 
 from .refresh_token import RefreshToken

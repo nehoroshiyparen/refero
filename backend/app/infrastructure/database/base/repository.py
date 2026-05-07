@@ -1,5 +1,5 @@
 from typing import TypeVar, Generic, Type
-from sqlalchemy import select, insert, update, delete
+from sqlalchemy import select, insert, update, delete, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.infrastructure.database import Base
 from .schemas import ListOptions, SearchOptions
@@ -21,13 +21,17 @@ class BaseRepository(Generic[ModelType]):
         result = await self._session.execute(stmt)
         return result.scalars().all()
     
+    async def get_one_by_filters(self, options: SearchOptions) -> ModelType | None:
+        stmt = self._build_filter_stmt(options)
+        
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+    
     async def search_by_filters(self, options: SearchOptions) -> list[ModelType]:
-        stmt = (
-            select(self._model)
-            .limit(options.limit)
-            .offset(options.offset)
-            .where(*options.filters)
-        )
+        stmt = self._build_filter_stmt(options)
+
+        stmt = stmt.limit(options.limit).offset(options.offset)
+
         result = await self._session.execute(stmt)
         return result.scalars().all()
     
@@ -36,7 +40,7 @@ class BaseRepository(Generic[ModelType]):
         result = await self._session.execute(stmt)
         return result.scalar_one()
 
-    async def update(self, id: int, data: dict) -> ModelType:
+    async def update(self, id: int, data: dict) -> ModelType | None:
         filtered = {k: v for k, v in data.items() if v is not None}
         stmt = update(self._model).where(self._model.id == id).values(**filtered).returning(self._model)
         result = await self._session.execute(stmt)
@@ -50,8 +54,21 @@ class BaseRepository(Generic[ModelType]):
             return False
         return True
     
+    def _build_filter_stmt(self, options: SearchOptions):
+        stmt = select(self._model)
+
+        if options.filters:
+            condition = (
+                or_(*options.filters)
+                if options.or_
+                else and_(*options.filters)
+            )
+            stmt = stmt.where(condition)
+
+        return stmt
+    
     def _to_dict(self, entity):
         data = {}
-        for c in self.model.__table__.columns:
+        for c in self._model.__table__.columns:
             data[c.name] = getattr(entity, c.name, None)
         return data

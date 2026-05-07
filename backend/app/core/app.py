@@ -1,12 +1,15 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
-from .deps import (
-    setup_handlers
-)
+from .routes import register_routes
+from .deps import setup_handlers
+from app.infrastructure.database.session import SessionLocal
+
 
 class App:
     def __init__(self):
         self.fastapi_app = FastAPI(title=settings.APP_NAME)
+        self.sessionmaker = SessionLocal
         self._setup()
 
     def get_session(self):
@@ -15,18 +18,25 @@ class App:
                 yield session
         return _get_session
 
-    """
-    Setups all dependencies for app
-    """
     def _setup(self):
+        """Setup all dependencies for app"""
+        register_routes(self.fastapi_app)
         setup_handlers(self.fastapi_app)
 
-    """
-    Starts up server
-    """
+        self.fastapi_app.add_middleware(
+            CORSMiddleware,
+            allow_origins=[f"http://{settings.CLIENT_HOST}:{settings.CLIENT_PORT}"]
+        )
+
     def start(self):
+        """Start the server"""
         import uvicorn
-        uvicorn.run(self.fastapi_app, host=settings.BACKEND_HOST, port=settings.BACKEND_PORT)
+        uvicorn.run(
+            self.fastapi_app,
+            host=settings.BACKEND_HOST,
+            port=settings.BACKEND_PORT,
+        )
 
     def stop(self):
+        """Stop the server"""
         pass
