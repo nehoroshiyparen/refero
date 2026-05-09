@@ -2,10 +2,15 @@ from fastapi import APIRouter, Depends, Request, Response, Cookie, status
 from app.core.responses import SuccessResponse
 from .schemas import (
     RegisterDTO,
-    LoginDTO
+    LoginDTO,
+    AccessTokenPayload
 )
 from app.core.deps import get_service
-from app.core.dependencies import get_current_user, get_refresh_token
+from app.core.dependencies import (
+    get_current_user, 
+    get_refresh_token,
+    unathorized_only
+)
 from .service import AuthService
 
 router = APIRouter()
@@ -17,7 +22,8 @@ router = APIRouter()
 async def register(
     dto: RegisterDTO,
     res: Response,
-    service: AuthService = Depends(get_service(AuthService))
+    service: AuthService = Depends(get_service(AuthService)),
+    is_authorized: None = Depends(unathorized_only)
 ):
     payload = await service.register(dto)
     
@@ -38,7 +44,8 @@ async def register(
 async def login(
     dto: LoginDTO,
     res: Response,
-    service: AuthService = Depends(get_service(AuthService))
+    service: AuthService = Depends(get_service(AuthService)),
+    is_authorized: None = Depends(unathorized_only)
 ):
     payload = await service.login(dto)
 
@@ -61,7 +68,7 @@ async def logout(
     res: Response,
     refresh_token: str | None = Cookie(default=None),
     service: AuthService = Depends(get_service(AuthService)),
-    user: dict["id": int, "role": str] = Depends(get_current_user)
+    user: AccessTokenPayload = Depends(get_current_user)
 ):
     await service.logout(refresh_token)
     res.delete_cookie("refresh_token")

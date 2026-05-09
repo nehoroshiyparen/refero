@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base import BaseService
 
-from app.modules.users.repositories import UserRepository, User
+from app.modules.users.repository import UserRepository, User
 from .repository import TokenRepository, RefreshToken
 
 from app.core.exceptions import (
@@ -37,15 +37,13 @@ class AuthService(BaseService):
         data: RegisterDTO
     ) -> AuthorizationPaylaod:
 
-        email_exists = await self._user_repo.one(
-            self._user_repo.query()
-                .where(User.email == data.email)
-        )
-
-        username_exists = await self._user_repo.one(
-            self._user_repo.query()
-                .where(User.username == data.username)
-        )
+        email_exists = await self._user_repo.query() \
+            .where(User.email == data.email) \
+            .one_or_none(self._session)
+        
+        username_exists = await self._user_repo.query() \
+            .where(User.username == data.username) \
+            .one_or_none(self._session)
 
         details = {}
 
@@ -70,7 +68,7 @@ class AuthService(BaseService):
 
         access_token = create_access_token(
             payload={
-                "sub": str(user.id),
+                "id": str(user.id),
                 "role": user.role_name.value
             }
         )
@@ -103,7 +101,7 @@ class AuthService(BaseService):
         if data.email:
             builder.where(User.email == data.email)
 
-        user = await self._user_repo.one(builder)
+        user = await builder.one_or_none(self._session)
 
         if not user:
             raise NotFound("User not found")
@@ -116,7 +114,7 @@ class AuthService(BaseService):
 
         access_token = create_access_token(
             payload={
-                "sub": str(user.id),
+                "id": str(user.id),
                 "role": user.role_name.value
             }
         )
@@ -141,12 +139,9 @@ class AuthService(BaseService):
         refresh_token: str
     ) -> None:
 
-        token = await self._token_repo.one(
-            self._token_repo.query()
-                .where(
-                    RefreshToken.token_hash == refresh_token
-                )
-        )
+        token = await self._token_repo.query() \
+            .where(RefreshToken.token_hash == refresh_token) \
+            .one_or_none(self._session)
 
         if not token:
             raise NotFound("Session not found")
@@ -161,13 +156,10 @@ class AuthService(BaseService):
         refresh_token: str
     ):
 
-        token = await self._token_repo.one(
-            self._token_repo.query()
-                .where(
-                    RefreshToken.token_hash == refresh_token
-                )
-                .with_user()
-        )
+        token = await self._token_repo.query() \
+            .where(RefreshToken.token_hash == refresh_token) \
+            .with_user() \
+            .one_or_none(self._session)
 
         if not token:
             raise Unauthorized

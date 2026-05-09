@@ -10,8 +10,8 @@ from .enum import RoleName
 
 if TYPE_CHECKING:
     from .role import Role
-    from .author_profile import AuthorProfile
-    from .reviewer_profile import ReviewerProfile
+    from app.modules.authors.models.author_profile import AuthorProfile
+    from app.modules.reviewers.models.reviewer_profile import ReviewerProfile
     from app.modules.auth.models import RefreshToken
 
 class User(Base):

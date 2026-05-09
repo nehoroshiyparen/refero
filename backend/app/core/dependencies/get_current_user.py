@@ -2,12 +2,12 @@ from fastapi import Header, Request
 from jose.jwt import ExpiredSignatureError, JWTError
 from app.core.exceptions import Unauthorized
 from app.modules.auth.utils import decode_access_token
-
+from app.modules.auth.schemas import AccessTokenPayload
 
 async def get_current_user(
     request: Request,
     authorization: str | None = Header(default=None),
-) -> dict["id": int, "role": str]:
+) -> AccessTokenPayload:
     if not authorization:
         raise Unauthorized("Authorization header required")
 

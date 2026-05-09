@@ -4,7 +4,7 @@ from .config import settings
 from .routes import register_routes
 from .deps import setup_handlers
 from app.infrastructure.database.session import SessionLocal
-
+import app.infrastructure.database.models.import_models 
 
 class App:
     def __init__(self):

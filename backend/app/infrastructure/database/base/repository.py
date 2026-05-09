@@ -6,37 +6,17 @@ from .query_builder import BaseQueryBuilder
 from .schemas import ListOptions, SearchOptions
 
 ModelType = TypeVar("ModelType", bound=Base)
+QueryBuilderType = TypeVar("QueryBuilderType", bound=BaseQueryBuilder)
 
-class BaseRepository(Generic[ModelType]):
-    builder_class = BaseQueryBuilder
+class BaseRepository(Generic[ModelType, QueryBuilderType]):
+    query_builder: type[QueryBuilderType]
 
     def __init__(self, model: Type[ModelType], session: AsyncSession):
         self._model = model
         self._session = session
-    
-    def query(self):
-        return self.builder_class(self._model)
-    
-    async def get_by_id(self, id: int):
-        return await self.one(
-            self.query().where(
-                self._model.id == id
-            )
-        )
-    
-    async def one(self, builder):
-        result = await self._session.execute(
-            builder.build()
-        )
 
-        return result.scalar_one_or_none()
-    
-    async def many(self, builder):
-        result = await self._session.execute(
-            builder.build()
-        )
-
-        return result.scalars().all()
+    def query(self) -> QueryBuilderType:
+        return self.query_builder(self._model)
 
     async def create(self, data: dict) -> ModelType:
         stmt = insert(self._model).values(**data).returning(self._model)

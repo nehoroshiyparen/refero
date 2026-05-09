@@ -1,3 +1,4 @@
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Generic, TypeVar, Type, Self
 from sqlalchemy import Select, select, and_, or_
 
@@ -19,7 +20,7 @@ class BaseQueryBuilder(Generic[ModelType]):
             self._stmt = self._stmt.where(condition)
 
         return self
-
+    
     def limit(self, limit: int) -> Self:
         self._stmt = self._stmt.limit(limit)
         return self
@@ -30,3 +31,7 @@ class BaseQueryBuilder(Generic[ModelType]):
 
     def build(self) -> Select:
         return self._stmt
+    
+    async def one_or_none(self, session: AsyncSession) -> ModelType | None:
+        result = await session.execute(self._stmt) 
+        return result.scalar_one_or_none()
