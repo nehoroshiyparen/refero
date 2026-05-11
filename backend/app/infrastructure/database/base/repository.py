@@ -9,14 +9,14 @@ ModelType = TypeVar("ModelType", bound=Base)
 QueryBuilderType = TypeVar("QueryBuilderType", bound=BaseQueryBuilder)
 
 class BaseRepository(Generic[ModelType, QueryBuilderType]):
-    query_builder: type[QueryBuilderType]
+    _query_builder: type[QueryBuilderType]
+    _model: type[ModelType]
 
-    def __init__(self, model: Type[ModelType], session: AsyncSession):
-        self._model = model
+    def __init__(self, session: AsyncSession):
         self._session = session
 
     def query(self) -> QueryBuilderType:
-        return self.query_builder(self._model)
+        return self._query_builder(self._model)
 
     async def create(self, data: dict) -> ModelType:
         stmt = insert(self._model).values(**data).returning(self._model)

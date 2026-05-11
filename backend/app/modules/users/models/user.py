@@ -13,6 +13,10 @@ if TYPE_CHECKING:
     from app.modules.authors.models.author_profile import AuthorProfile
     from app.modules.reviewers.models.reviewer_profile import ReviewerProfile
     from app.modules.auth.models import RefreshToken
+    from app.modules.articles.models.article_authors import ArticleAuthors
+    from app.modules.articles.models.article_approvals import ArticleApprovals
+    from app.modules.articles.models.arcticle import Article
+    from app.modules.reviewers.models.review import Review
 
 class User(Base):
     __tablename__ = "users"
@@ -48,4 +52,20 @@ class User(Base):
 
     refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
+    )
+
+    articles_as_author: Mapped[list["ArticleAuthors"]] = relationship(
+        foreign_keys="ArticleAuthors.author_id", back_populates="author"
+    )
+    
+    approvals_given: Mapped[list["ArticleApprovals"]] = relationship(
+        foreign_keys="ArticleApprovals.approver_id", back_populates="approver"
+    )
+    
+    reviews_as_reviewer: Mapped[list["Review"]] = relationship(
+        foreign_keys="Review.reviewer_id", back_populates="reviewer"
+    )
+    
+    articles_updated: Mapped[list["Article"]] = relationship(
+        foreign_keys="Article.updated_by_user_id", back_populates="updated_by_user"
     )

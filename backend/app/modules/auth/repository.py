@@ -4,7 +4,8 @@ from .query_builder import TokenQueryBuilder
 from .models import RefreshToken
 
 class TokenRepository(BaseRepository[RefreshToken, TokenQueryBuilder]):
-    query_builder = TokenQueryBuilder
+    _query_builder = TokenQueryBuilder
+    _model = RefreshToken
 
     def __init__(self, session: AsyncSession):
-        super().__init__(RefreshToken, session)
+        super().__init__(session)

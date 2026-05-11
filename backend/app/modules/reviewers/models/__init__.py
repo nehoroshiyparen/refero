@@ -1,1 +1,0 @@
-from .reviewer_profile import ReviewerProfile

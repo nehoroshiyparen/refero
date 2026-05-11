@@ -4,7 +4,8 @@ from .models import User, RoleName
 from .query_builder import UserQueryBuilder
 
 class UserRepository(BaseRepository[User, UserQueryBuilder]):
-    query_builder = UserQueryBuilder
+    _query_builder = UserQueryBuilder
+    _model = User
 
     def __init__(self, session: AsyncSession):
-        super().__init__(User, session)
+        super().__init__(session)
