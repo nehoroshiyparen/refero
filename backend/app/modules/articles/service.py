@@ -9,7 +9,7 @@ from .repositories import (
     ArticleAuthorsRepository,
     ArticleApprovalsRepository,
 )
-from .models.arcticle import Article
+from .models.article import Article
 from .models.article_authors import ArticleAuthors
 from .models.enum import ArticleStatus, ApprovalStatus
 from .schemas import (
@@ -37,7 +37,7 @@ class ArticleService(BaseService):
     #  READ
     # ------------------------------------------------------------------ #
 
-    async def get_articles(self, filters: ArticleFiltersDTO) -> list[ArticlePayload]:
+    async def get_articles(self, filters: ArticleFiltersDTO) -> tuple[list[ArticlePayload], PaginationMeta]:
         qb = (
             self._article_repo.query()
             .filter_status(filters.status)
@@ -105,7 +105,7 @@ class ArticleService(BaseService):
 
         await self._check_is_author(id, user_id)
 
-        data = {"updated_by_user_id": str(user_id)}
+        data: dict[str, str | list[str]] = {"updated_by_user_id": str(user_id)}
         for field in ("title", "abstract", "language", "pdf_path"):
             value = getattr(dto, field, None)
             if value is not None:
@@ -283,7 +283,7 @@ class ArticleService(BaseService):
             doi=article.doi,
             pdf_path=article.pdf_path,
             journal_id=article.journal_id,
-            status=article.status,
+            status=ArticleStatus(article.status),
             view_count=article.view_count,
             download_count=article.download_count,
             creator_id=article.creator_id if hasattr(article, "creator_id") else None,
@@ -320,7 +320,7 @@ class ArticleService(BaseService):
             doi=article.doi,
             pdf_path=article.pdf_path,
             journal_id=article.journal_id,
-            status=article.status,
+            status=ArticleStatus(article.status),
             view_count=article.view_count,
             download_count=article.download_count,
             creator_id=article.creator_id if hasattr(article, "creator_id") else None,

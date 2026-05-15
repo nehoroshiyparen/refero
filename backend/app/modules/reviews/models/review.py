@@ -8,7 +8,7 @@ from app.infrastructure.database import Base
 from .enum import ReviewStatus
 
 if TYPE_CHECKING:
-    from app.modules.articles.models.arcticle import Article
+    from backend.app.modules.articles.models.article import Article
     from app.modules.users.models.user import User
 
 class Review(Base):

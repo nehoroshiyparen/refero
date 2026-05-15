@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from app.infrastructure.database import Base
 
 if TYPE_CHECKING:
-    from app.modules.articles.models.arcticle import Article
+    from backend.app.modules.articles.models.article import Article
 
 class Citation(Base):
     __tablename__ = "citations"

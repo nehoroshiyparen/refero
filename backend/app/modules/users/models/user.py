@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from app.modules.auth.models import RefreshToken
     from app.modules.articles.models.article_authors import ArticleAuthors
     from app.modules.articles.models.article_approvals import ArticleApprovals
-    from app.modules.articles.models.arcticle import Article
+    from backend.app.modules.articles.models.article import Article
 
 class User(Base):
     __tablename__ = "users"

@@ -1,11 +1,13 @@
-from typing import TypeVar, Generic, Type
+import uuid
+from typing import TypeVar, Generic, cast
+from sqlalchemy.engine import CursorResult
 from sqlalchemy import select, insert, update, delete, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.infrastructure.database import Base
+from app.infrastructure.database import BaseModel
 from .query_builder import BaseQueryBuilder
 from .schemas import ListOptions, SearchOptions
 
-ModelType = TypeVar("ModelType", bound=Base)
+ModelType = TypeVar("ModelType", bound=BaseModel)
 QueryBuilderType = TypeVar("QueryBuilderType", bound=BaseQueryBuilder)
 
 class BaseRepository(Generic[ModelType, QueryBuilderType]):
@@ -23,19 +25,19 @@ class BaseRepository(Generic[ModelType, QueryBuilderType]):
         result = await self._session.execute(stmt)
         return result.scalar_one()
 
-    async def update(self, id: int, data: dict) -> ModelType | None:
+    async def update(self, id: uuid.UUID, data: dict) -> ModelType:
         filtered = {k: v for k, v in data.items() if v is not None}
         stmt = update(self._model).where(self._model.id == id).values(**filtered).returning(self._model)
         result = await self._session.execute(stmt)
         updated = result.scalar_one_or_none()
+        if updated is None:
+            raise ValueError("Object not found")
         return updated
     
-    async def delete(self, id: int) -> bool:
+    async def delete(self, id: uuid.UUID) -> bool:
         stmt = delete(self._model).where(self._model.id == id)
-        result = await self._session.execute(stmt)
-        if result.rowcount == 0:
-            return False
-        return True
+        result = cast(CursorResult, await self._session.execute(stmt))
+        return result.rowcount > 0
     
     def _build_filter_stmt(self, options: SearchOptions):
         stmt = select(self._model)
