@@ -4,13 +4,13 @@ from typing import TYPE_CHECKING
 import uuid
 from sqlalchemy import String, DateTime, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.infrastructure.database import Base
+from app.infrastructure.database import BaseModel
 from datetime import datetime
 
 if TYPE_CHECKING:
     from app.modules.users.models import User
 
-class RefreshToken(Base):
+class RefreshToken(BaseModel):
     __tablename__ = "refresh_tokens"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4, )

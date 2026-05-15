@@ -6,13 +6,13 @@ from sqlalchemy import ForeignKey, DateTime, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 
-from app.infrastructure.database import Base
+from app.infrastructure.database import BaseModel
 
 if TYPE_CHECKING:
-    from app.modules.articles.models.arcticle import Article
+    from backend.app.modules.articles.models.article import Article
     from app.modules.users.models.user import User
 
-class ArticleAuthors(Base):
+class ArticleAuthors(BaseModel):
     __tablename__ = "article_authors"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)

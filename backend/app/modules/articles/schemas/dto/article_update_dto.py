@@ -1,6 +1,8 @@
 import uuid
 from pydantic import BaseModel, Field
 
+from app.modules.citations.schemas import CitationInput
+
 class ArticleUpdateDTO(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=500)
 
@@ -13,3 +15,5 @@ class ArticleUpdateDTO(BaseModel):
     pdf_path: str | None = None
 
     journal_id: uuid.UUID | None = None
+
+    citations: list[CitationInput] | None = None

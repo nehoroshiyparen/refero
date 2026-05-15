@@ -1,3 +1,3 @@
-from .base_model import Base
+from .base_model import Base, BaseModel
 from .session import SessionLocal
 from .base import BaseRepository, BaseQueryBuilder

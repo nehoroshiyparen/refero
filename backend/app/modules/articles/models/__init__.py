@@ -1,4 +1,4 @@
-from .arcticle import Article
+from .article import Article
 from .article_approvals import ArticleApprovals
 from .article_authors import ArticleAuthors
 from .article_status import ArticleStatusRow

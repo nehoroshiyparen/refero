@@ -12,13 +12,14 @@ from app.modules.articles.schemas import (
     ArticleFiltersDTO,
     AddAuthorDTO,
 )
+from app.modules.citations.schemas import CitationInput
 from app.core.exceptions import NotFound, Forbidden, BadRequest
 
 pytestmark = pytest.mark.asyncio
 
 # ── Fixtures ──────────────────────────────────────────────────
 
-@pytest_asyncio.fixture(loop_scope="session")
+@pytest.fixture
 def service(db_session):
     return ArticleService(db_session)
 
@@ -93,6 +94,30 @@ class TestCreateArticle:
 
         assert authors_result is not None
         assert authors_result.author_id == test_user["id"]
+
+    async def test_create_article_with_citations(self, service, test_user):
+        dto = ArticleCreateDTO(
+            title="Article with Citations",
+            pdf_path="/uploads/paper.pdf",
+            citations=[
+                CitationInput(raw_reference="External ref 1"),
+                CitationInput(raw_reference="External ref 2"),
+            ],
+        )
+        result = await service.create_article(dto, user_id=test_user["id"])
+
+        assert len(result.citations) == 2
+        assert result.citations[0].match_status.value == "external"
+
+    async def test_create_article_journal_not_found(self, service, test_user):
+        dto = ArticleCreateDTO(
+            title="Bad Journal",
+            pdf_path="/uploads/paper.pdf",
+            journal_id=uuid.uuid4(),
+        )
+
+        with pytest.raises(NotFound, match="journal"):
+            await service.create_article(dto, user_id=test_user["id"])
 
 
 # ── GET BY ID ─────────────────────────────────────────────────
@@ -212,6 +237,50 @@ class TestUpdateArticle:
 
         with pytest.raises(NotFound):
             await service.update_article(uuid.uuid4(), dto, user_id=test_user["id"])
+
+    async def test_update_article_with_citations(self, service, draft_article, test_user):
+        dto = ArticleUpdateDTO(
+            citations=[CitationInput(raw_reference="Added via update")],
+        )
+        result = await service.update_article(
+            draft_article.id, dto, user_id=test_user["id"],
+        )
+
+        assert len(result.citations) == 1
+        assert result.citations[0].raw_reference == "Added via update"
+
+    async def test_update_article_journal_not_found(
+        self, service, draft_article, test_user
+    ):
+        dto = ArticleUpdateDTO(journal_id=uuid.uuid4())
+
+        with pytest.raises(NotFound, match="journal"):
+            await service.update_article(
+                draft_article.id, dto, user_id=test_user["id"],
+            )
+
+    async def test_update_article_clear_journal(
+        self, service, draft_article, test_user, db_session
+    ):
+        journal_id = uuid.uuid4()
+        await db_session.execute(
+            text("INSERT INTO journals (id, name) VALUES (:id, :name)"),
+            {"id": str(journal_id), "name": "Temp Journal"},
+        )
+        await db_session.flush()
+
+        await db_session.execute(
+            text("UPDATE articles SET journal_id = :jid WHERE id = :id"),
+            {"jid": str(journal_id), "id": str(draft_article.id)},
+        )
+        await db_session.flush()
+
+        dto = ArticleUpdateDTO(journal_id=None)
+        result = await service.update_article(
+            draft_article.id, dto, user_id=test_user["id"],
+        )
+
+        assert result.journal_id is None
 
 
 # ── DELETE ────────────────────────────────────────────────────

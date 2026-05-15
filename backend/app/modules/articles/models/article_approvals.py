@@ -4,14 +4,14 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from app.infrastructure.database import Base
+from app.infrastructure.database import BaseModel
 from .enum import ApprovalStatus
 
 if TYPE_CHECKING:
-    from app.modules.articles.models.arcticle import Article
+    from backend.app.modules.articles.models.article import Article
     from app.modules.users.models.user import User
 
-class ArticleApprovals(Base):
+class ArticleApprovals(BaseModel):
     __tablename__ = "article_approvals"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)

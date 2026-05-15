@@ -4,6 +4,7 @@ from sqlalchemy import select, exists, or_
 
 from app.infrastructure.database import BaseQueryBuilder
 from ..models import Article, ArticleAuthors, ArticleStatus
+from app.modules.citations.models import Citation
 
 class ArticleQueryBuilder(BaseQueryBuilder[Article]):
     def __init__(self, model):
@@ -66,4 +67,9 @@ class ArticleQueryBuilder(BaseQueryBuilder[Article]):
     def with_journal(self) -> "ArticleQueryBuilder":
         """Подгрузить журнал."""
         self._stmt = self._stmt.options(selectinload(Article.journal))
+        return self
+
+    def with_citations(self) -> "ArticleQueryBuilder":
+        """Подгрузить исходящие цитирования."""
+        self._stmt = self._stmt.options(selectinload(Article.citations_from))
         return self

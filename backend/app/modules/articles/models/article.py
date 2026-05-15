@@ -4,10 +4,10 @@ from enum import Enum as PyEnum
 
 import uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Text, ARRAY, VARCHAR, DateTime, ForeignKey, Integer, func, Enum
+from sqlalchemy import String, Text, ARRAY, VARCHAR, DateTime, ForeignKey, Integer, Boolean, func, Enum
 from datetime import datetime
 
-from app.infrastructure.database import Base
+from app.infrastructure.database import BaseModel
 from .enum import ArticleStatus
 
 if TYPE_CHECKING:
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from app.modules.reviews.models import Review
     from app.modules.users.models.user import User
 
-class Article(Base):
+class Article(BaseModel):
     __tablename__ = "articles"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -40,6 +40,8 @@ class Article(Base):
         ForeignKey("article_statuses.name"),
         default=ArticleStatus.DRAFT.value,
     )
+
+    is_visible: Mapped[bool] = mapped_column(Boolean, default=True)
 
     view_count: Mapped[int] = mapped_column(Integer, default=0)
     download_count: Mapped[int] = mapped_column(Integer, default=0)

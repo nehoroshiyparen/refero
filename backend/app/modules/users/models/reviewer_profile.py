@@ -2,12 +2,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import uuid
-from sqlalchemy import String, Text, ForeignKey
+from sqlalchemy import String, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.infrastructure.database import Base
 
 if TYPE_CHECKING:
-    from ...users.models.user import User
+    from .user import User
 
 class ReviewerProfile(Base):
     __tablename__ = "reviewer_profiles"
