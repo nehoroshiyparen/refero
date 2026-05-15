@@ -58,7 +58,8 @@ class ArticleService(BaseService):
 
     async def get_article_by_id(self, id: uuid.UUID) -> ArticleFullPayload:
         article = await self._get_article_full_or_fail(id)
-        await self._article_repo.update(id, {"view_count": article.view_count + 1})
+        article.view_count += 1
+        await self._article_repo.update(id, {"view_count": article.view_count})
         return self._to_full_payload(article)
 
     # ------------------------------------------------------------------ #
@@ -105,16 +106,10 @@ class ArticleService(BaseService):
 
         await self._check_is_author(id, user_id)
 
-        data: dict[str, str | list[str]] = {"updated_by_user_id": str(user_id)}
-        for field in ("title", "abstract", "language", "pdf_path"):
-            value = getattr(dto, field, None)
-            if value is not None:
-                data[field] = value
-
-        if dto.keywords is not None:
-            data["keywords"] = dto.keywords
-        if dto.journal_id is not None:
-            data["journal_id"] = str(dto.journal_id)
+        data: dict = dto.model_dump(exclude_unset=True)
+        data["updated_by_user_id"] = str(user_id)
+        if "journal_id" in data and data["journal_id"] is not None:
+            data["journal_id"] = str(data["journal_id"])
 
         updated = await self._article_repo.update(id, data)
         return self._to_payload(updated)

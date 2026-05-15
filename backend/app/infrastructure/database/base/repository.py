@@ -1,7 +1,7 @@
 import uuid
 from typing import TypeVar, Generic, cast
 from sqlalchemy.engine import CursorResult
-from sqlalchemy import select, insert, update, delete, or_, and_
+from sqlalchemy import select, insert, update, delete, or_, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.infrastructure.database import BaseModel
 from .query_builder import BaseQueryBuilder
@@ -26,8 +26,8 @@ class BaseRepository(Generic[ModelType, QueryBuilderType]):
         return result.scalar_one()
 
     async def update(self, id: uuid.UUID, data: dict) -> ModelType:
-        filtered = {k: v for k, v in data.items() if v is not None}
-        stmt = update(self._model).where(self._model.id == id).values(**filtered).returning(self._model)
+        data["updated_at"] = func.now()
+        stmt = update(self._model).where(self._model.id == id).values(**data).returning(self._model)
         result = await self._session.execute(stmt)
         updated = result.scalar_one_or_none()
         if updated is None:
