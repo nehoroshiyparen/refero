@@ -1,7 +1,9 @@
+from typing import Generic, TypeVar, Any
 from pydantic import BaseModel
-from typing import Any
 
-class SuccessResponse(BaseModel):
+DataT = TypeVar("DataT")
+
+class SuccessResponse(BaseModel, Generic[DataT]):
     message: str | None = None
-    data: Any | None = None
+    data: DataT | None = None
     meta: Any | None = None
