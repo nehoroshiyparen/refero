@@ -6,7 +6,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.infrastructure.database import BaseModel
 from .query_builder import BaseQueryBuilder
 from .schemas import ListOptions, SearchOptions
-
 ModelType = TypeVar("ModelType", bound=BaseModel)
 QueryBuilderType = TypeVar("QueryBuilderType", bound=BaseQueryBuilder)
 

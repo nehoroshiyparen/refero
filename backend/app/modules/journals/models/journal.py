@@ -6,12 +6,12 @@ from sqlalchemy import String, Text, DateTime, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 
-from app.infrastructure.database import Base
+from app.infrastructure.database import BaseModel
 
 if TYPE_CHECKING:
     from backend.app.modules.articles.models.article import Article
 
-class Journal(Base):
+class Journal(BaseModel):
     __tablename__ = "journals"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)

@@ -5,19 +5,20 @@ import uuid
 from sqlalchemy import Integer, String, Boolean, DateTime, Enum, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
-from app.infrastructure.database import Base
+from app.infrastructure.database import BaseModel
 from .enum import RoleName
 
 if TYPE_CHECKING:
     from .role import Role
-    from app.modules.authors.models.author_profile import AuthorProfile
-    from app.modules.reviews.models import ReviewerProfile, Review
+    from .author_profile import AuthorProfile
+    from .reviewer_profile import ReviewerProfile
+    from app.modules.reviews.models import Review
     from app.modules.auth.models import RefreshToken
     from app.modules.articles.models.article_authors import ArticleAuthors
     from app.modules.articles.models.article_approvals import ArticleApprovals
-    from backend.app.modules.articles.models.article import Article
+    from app.modules.articles.models.article import Article
 
-class User(Base):
+class User(BaseModel):
     __tablename__ = "users"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4, )

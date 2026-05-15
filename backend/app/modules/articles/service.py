@@ -56,11 +56,20 @@ class ArticleService(BaseService):
 
         return payloads, meta
 
-    async def get_article_by_id(self, id: uuid.UUID) -> ArticleFullPayload:
+    async def get_article_by_id(
+        self,
+        id: uuid.UUID,
+        anonymous: bool = False,
+    ) -> ArticleFullPayload:
         article = await self._get_article_full_or_fail(id)
         article.view_count += 1
         await self._article_repo.update(id, {"view_count": article.view_count})
-        return self._to_full_payload(article)
+        payload = self._to_full_payload(article)
+        if anonymous:
+            for author in payload.authors:
+                author.name = ""
+                author.email = ""
+        return payload
 
     # ------------------------------------------------------------------ #
     #  CREATE / UPDATE / DELETE
@@ -128,6 +137,36 @@ class ArticleService(BaseService):
             raise Forbidden("Only the article creator can delete it")
 
         await self._article_repo.delete(id)
+
+    # ------------------------------------------------------------------ #
+    #  VISIBILITY
+    # ------------------------------------------------------------------ #
+
+    async def hide_article(
+        self,
+        id: uuid.UUID,
+        user_id: uuid.UUID,
+    ) -> ArticlePayload:
+        article = await self._get_article_or_fail(id)
+
+        if article.creator_id != user_id:
+            raise Forbidden("Only the article creator can hide it")
+
+        updated = await self._article_repo.update(id, {"is_visible": False})
+        return self._to_payload(updated)
+
+    async def show_article(
+        self,
+        id: uuid.UUID,
+        user_id: uuid.UUID,
+    ) -> ArticlePayload:
+        article = await self._get_article_or_fail(id)
+
+        if article.creator_id != user_id:
+            raise Forbidden("Only the article creator can show it")
+
+        updated = await self._article_repo.update(id, {"is_visible": True})
+        return self._to_payload(updated)
 
     # ------------------------------------------------------------------ #
     #  APPROVAL WORKFLOW
@@ -279,6 +318,7 @@ class ArticleService(BaseService):
             pdf_path=article.pdf_path,
             journal_id=article.journal_id,
             status=ArticleStatus(article.status),
+            is_visible=article.is_visible,
             view_count=article.view_count,
             download_count=article.download_count,
             creator_id=article.creator_id if hasattr(article, "creator_id") else None,
@@ -316,6 +356,7 @@ class ArticleService(BaseService):
             pdf_path=article.pdf_path,
             journal_id=article.journal_id,
             status=ArticleStatus(article.status),
+            is_visible=article.is_visible,
             view_count=article.view_count,
             download_count=article.download_count,
             creator_id=article.creator_id if hasattr(article, "creator_id") else None,

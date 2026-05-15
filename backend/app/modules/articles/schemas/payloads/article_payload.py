@@ -14,6 +14,7 @@ class ArticlePayload(BaseModel):
     pdf_path: str
     journal_id: uuid.UUID | None = None
     status: ArticleStatus
+    is_visible: bool = True
     view_count: int = 0
     download_count: int = 0
     creator_id: uuid.UUID | None = None

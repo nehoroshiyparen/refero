@@ -18,7 +18,7 @@ pytestmark = pytest.mark.asyncio
 
 # ── Fixtures ──────────────────────────────────────────────────
 
-@pytest_asyncio.fixture(loop_scope="session")
+@pytest.fixture
 def service(db_session):
     return ArticleService(db_session)
 
