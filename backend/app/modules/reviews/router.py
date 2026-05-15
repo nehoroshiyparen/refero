@@ -25,8 +25,11 @@ async def my_reviews(
     service: ReviewService = Depends(get_service(ReviewService)),
     user: AccessTokenPayload = Depends(require_role([RoleName.REVIEWER])),
 ):
-    items = await service.get_my_reviews(user_id=user.id, filters=filters)
-    return SuccessResponse(data=[item.model_dump() for item in items])
+    items, meta = await service.get_my_reviews(user_id=user.id, filters=filters)
+    return SuccessResponse(
+        data=[item.model_dump() for item in items],
+        meta=meta
+    )
 
 
 @article_reviews_router.get(

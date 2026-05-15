@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from app.core.base import BaseService
 from app.core.exceptions import NotFound, Forbidden, BadRequest
+from app.core.responses import PaginationMeta
 
 from app.modules.articles.models.article import Article
 from app.modules.articles.models.enum import ArticleStatus
@@ -34,13 +35,18 @@ class ReviewService(BaseService):
     async def get_my_reviews(
         self,
         user_id: uuid.UUID,
-        filters: ReviewFiltersDTO | None = None,
-    ) -> list[ReviewPayload]:
+        filters: ReviewFiltersDTO,
+    ) -> tuple[list[ReviewPayload], PaginationMeta]:
         qb = self._review_repo.query().filter_by_reviewer(user_id)
         if filters:
             qb.filter_by_status(filters.status).filter_by_article(filters.article_id)
-        items = await qb.all(self._session)
-        return [self._to_payload(r) for r in items]
+        total = await qb.count(self._session)
+        items = await qb.limit(filters.limit).offset(filters.offset).all(self._session)
+
+        payloads = [self._to_payload(r) for r in items]
+        meta = PaginationMeta(total=total, limit=filters.limit, offset=filters.offset)
+
+        return payloads, meta
 
     async def get_article_reviews(self, article_id: uuid.UUID) -> list[ReviewPayload]:
         items = await (
