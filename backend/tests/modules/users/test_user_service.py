@@ -139,14 +139,13 @@ class TestEditProfile:
 
         assert result.author_profile is not None
         assert result.author_profile.position == "Professor"
-        assert result.author_profile.organization is not None  # осталось от предыдущего теста
 
     async def test_edit_author_profile_upsert(self, user_service, test_user, db_session):
         other_id = uuid.uuid4()
         await db_session.execute(
             text("""
-                INSERT INTO users (id, username, email, hashed_password, full_name, role_name)
-                VALUES (:id, :uname, :email, :pw, :name, :role)
+                INSERT INTO users (id, username, email, hashed_password, full_name, role_name, is_active)
+                VALUES (:id, :uname, :email, :pw, :name, :role, :is_active)
             """),
             {
                 "id": str(other_id),
@@ -155,6 +154,7 @@ class TestEditProfile:
                 "pw": "fake_hash",
                 "name": "New User",
                 "role": "AUTHOR",
+                "is_active": True
             },
         )
         await db_session.flush()
@@ -173,8 +173,8 @@ class TestEditProfile:
         reviewer_id = uuid.uuid4()
         await db_session.execute(
             text("""
-                INSERT INTO users (id, username, email, hashed_password, full_name, role_name)
-                VALUES (:id, :uname, :email, :pw, :name, :role)
+                INSERT INTO users (id, username, email, hashed_password, full_name, role_name, is_active)
+                VALUES (:id, :uname, :email, :pw, :name, :role, :is_active)
             """),
             {
                 "id": str(reviewer_id),
@@ -183,6 +183,7 @@ class TestEditProfile:
                 "pw": "fake_hash",
                 "name": "Test Reviewer",
                 "role": "REVIEWER",
+                "is_active": True
             },
         )
         await db_session.flush()

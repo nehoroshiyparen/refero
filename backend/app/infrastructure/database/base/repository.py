@@ -4,6 +4,7 @@ from sqlalchemy.engine import CursorResult
 from sqlalchemy import select, insert, update, delete, or_, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.infrastructure.database import BaseModel
+from app.core.exceptions import NotFound
 from .query_builder import BaseQueryBuilder
 from .schemas import ListOptions, SearchOptions
 ModelType = TypeVar("ModelType", bound=BaseModel)
@@ -30,7 +31,7 @@ class BaseRepository(Generic[ModelType, QueryBuilderType]):
         result = await self._session.execute(stmt)
         updated = result.scalar_one_or_none()
         if updated is None:
-            raise ValueError("Object not found")
+            raise NotFound("Object not found")
         return updated
     
     async def delete(self, id: uuid.UUID) -> bool:
