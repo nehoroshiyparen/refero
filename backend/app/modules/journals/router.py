@@ -9,14 +9,14 @@ from app.modules.auth.schemas import AccessTokenPayload
 from app.modules.users.models import RoleName
 
 from .service import JournalService
-from .schemas import CreateJournalDTO, UpdateJournalDTO
+from .schemas import CreateJournalDTO, UpdateJournalDTO, JournalPayload
 
 router = APIRouter()
 
 
 @router.get(
     "/",
-    response_model=SuccessResponse,
+    response_model=SuccessResponse[list[JournalPayload]],
     summary="Список журналов",
 )
 async def get_journals(
@@ -28,7 +28,7 @@ async def get_journals(
 
 @router.get(
     "/{id}",
-    response_model=SuccessResponse,
+    response_model=SuccessResponse[JournalPayload],
     summary="Информация о журнале",
 )
 async def get_journal(
@@ -41,7 +41,7 @@ async def get_journal(
 
 @router.post(
     "/",
-    response_model=SuccessResponse,
+    response_model=SuccessResponse[JournalPayload],
     status_code=status.HTTP_201_CREATED,
     summary="Создать журнал (admin only)",
 )
@@ -59,7 +59,7 @@ async def create_journal(
 
 @router.put(
     "/{id}",
-    response_model=SuccessResponse,
+    response_model=SuccessResponse[JournalPayload],
     summary="Обновить журнал (admin only)",
 )
 async def update_journal(
