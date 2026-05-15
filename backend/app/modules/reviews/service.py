@@ -88,10 +88,9 @@ class ReviewService(BaseService):
         })
 
         article_status = _STATUS_MAP[dto.status]
-        now = datetime.now(timezone.utc)
         article_data: dict = {"status": article_status.value}
         if article_status == ArticleStatus.PUBLISHED:
-            article_data["published_at"] = now
+            article_data["published_at"] = datetime.now(timezone.utc).replace(tzinfo=None)
 
         await self._article_repo.update(dto.article_id, article_data)
 

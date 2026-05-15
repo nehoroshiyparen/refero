@@ -1,4 +1,4 @@
-.PHONY: start stop logs build rebuild restart ps \
+.PHONY: start stop logs build rebuild restart ps clean \
         bash-back bash-front \
 
 # 🚀 Запуск
@@ -22,6 +22,9 @@ rebuild:
 restart:
 	docker compose down
 	docker compose up -d
+
+clean:
+	docker compose down -v
 
 # 📜 Логи
 logs:

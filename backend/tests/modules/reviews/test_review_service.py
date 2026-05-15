@@ -41,12 +41,12 @@ def review_service(db_session):
     return ReviewService(db_session)
 
 
-def _make_review_article(db_session, creator_id) -> uuid.UUID:
+async def _make_review_article(db_session, creator_id) -> uuid.UUID:
     article_id = uuid.uuid4()
-    db_session.execute(
+    await db_session.execute(
         text("""
-            INSERT INTO articles (id, title, pdf_path, creator_id, status)
-            VALUES (:id, :title, :pdf, :creator, :status)
+            INSERT INTO articles (id, title, pdf_path, creator_id, status, language, keywords, is_visible)
+            VALUES (:id, :title, :pdf, :creator, :status, :language, :keywords, :is_visible)
         """),
         {
             "id": str(article_id),
@@ -54,9 +54,12 @@ def _make_review_article(db_session, creator_id) -> uuid.UUID:
             "pdf": "/uploads/review.pdf",
             "creator": str(creator_id),
             "status": ArticleStatus.REVIEW.value,
+            "language": "en",
+            "keywords": [],
+            "is_visible": True,
         },
     )
-    db_session.flush()
+    await db_session.flush()
     return article_id
 
 
@@ -68,11 +71,11 @@ class TestGetMyReviews:
     async def test_my_reviews_with_filter(
         self, db_session, review_service, test_reviewer, test_user
     ):
-        article_id = _make_review_article(db_session, test_user["id"])
+        article_id = await _make_review_article(db_session, test_user["id"])
         dto = CreateReviewDTO(article_id=article_id, status=ReviewStatusEnum.PENDING)
         await review_service.create_review(dto, user_id=test_reviewer["id"])
 
-        items = await review_service.get_my_reviews(
+        items, meta = await review_service.get_my_reviews(
             user_id=test_reviewer["id"],
             filters=ReviewFiltersDTO(status=ReviewStatusEnum.PENDING),
         )
@@ -82,7 +85,7 @@ class TestGetMyReviews:
     async def test_my_reviews_empty(
         self, review_service, test_user
     ):
-        items = await review_service.get_my_reviews(user_id=test_user["id"])
+        items, meta = await review_service.get_my_reviews(user_id=test_user["id"], filters=ReviewFiltersDTO())
         assert items == []
 
 
@@ -94,7 +97,7 @@ class TestGetArticleReviews:
     async def test_article_reviews_success(
         self, db_session, review_service, test_reviewer, test_user
     ):
-        article_id = _make_review_article(db_session, test_user["id"])
+        article_id = await _make_review_article(db_session, test_user["id"])
         dto = CreateReviewDTO(article_id=article_id, status=ReviewStatusEnum.PENDING)
         await review_service.create_review(dto, user_id=test_reviewer["id"])
 
@@ -113,7 +116,7 @@ class TestGetArticleReviews:
 class TestCreateReview:
 
     async def test_pending(self, db_session, review_service, test_reviewer, test_user):
-        article_id = _make_review_article(db_session, test_user["id"])
+        article_id = await _make_review_article(db_session, test_user["id"])
         dto = CreateReviewDTO(
             article_id=article_id,
             status=ReviewStatusEnum.PENDING,
@@ -130,7 +133,7 @@ class TestCreateReview:
         assert article.status == ArticleStatus.REVIEW.value
 
     async def test_approved(self, db_session, review_service, test_reviewer, test_user):
-        article_id = _make_review_article(db_session, test_user["id"])
+        article_id = await _make_review_article(db_session, test_user["id"])
         dto = CreateReviewDTO(
             article_id=article_id,
             status=ReviewStatusEnum.APPROVED,
@@ -145,7 +148,7 @@ class TestCreateReview:
         assert article.published_at is not None
 
     async def test_rejected(self, db_session, review_service, test_reviewer, test_user):
-        article_id = _make_review_article(db_session, test_user["id"])
+        article_id = await _make_review_article(db_session, test_user["id"])
         dto = CreateReviewDTO(
             article_id=article_id,
             status=ReviewStatusEnum.REJECTED,
@@ -158,7 +161,7 @@ class TestCreateReview:
         assert article.status == ArticleStatus.REJECTED.value
 
     async def test_requesting_changes(self, db_session, review_service, test_reviewer, test_user):
-        article_id = _make_review_article(db_session, test_user["id"])
+        article_id = await _make_review_article(db_session, test_user["id"])
         dto = CreateReviewDTO(
             article_id=article_id,
             status=ReviewStatusEnum.REQUESTING_CHANGES,
@@ -172,10 +175,10 @@ class TestCreateReview:
 
     async def test_article_not_in_review(self, db_session, review_service, test_reviewer, test_user):
         article_id = uuid.uuid4()
-        db_session.execute(
+        await db_session.execute(
             text("""
-                INSERT INTO articles (id, title, pdf_path, creator_id, status)
-                VALUES (:id, :title, :pdf, :creator, :status)
+                INSERT INTO articles (id, title, pdf_path, creator_id, status, language, keywords, is_visible)
+                VALUES (:id, :title, :pdf, :creator, :status, :language, :keywords, :is_visible)
             """),
             {
                 "id": str(article_id),
@@ -183,16 +186,19 @@ class TestCreateReview:
                 "pdf": "/uploads/draft.pdf",
                 "creator": str(test_user["id"]),
                 "status": ArticleStatus.DRAFT.value,
+                "language": "en",
+                "keywords": [],
+                "is_visible": True,
             },
         )
-        db_session.flush()
+        await db_session.flush()
 
         dto = CreateReviewDTO(article_id=article_id, status=ReviewStatusEnum.PENDING)
         with pytest.raises(BadRequest, match="review status"):
             await review_service.create_review(dto, user_id=test_reviewer["id"])
 
     async def test_duplicate(self, db_session, review_service, test_reviewer, test_user):
-        article_id = _make_review_article(db_session, test_user["id"])
+        article_id = await _make_review_article(db_session, test_user["id"])
         dto = CreateReviewDTO(article_id=article_id, status=ReviewStatusEnum.PENDING)
         await review_service.create_review(dto, user_id=test_reviewer["id"])
 
@@ -211,7 +217,7 @@ class TestCreateReview:
 class TestUpdateReview:
 
     async def test_comment(self, db_session, review_service, test_reviewer, test_user):
-        article_id = _make_review_article(db_session, test_user["id"])
+        article_id = await _make_review_article(db_session, test_user["id"])
         created = await review_service.create_review(
             CreateReviewDTO(article_id=article_id, status=ReviewStatusEnum.PENDING),
             user_id=test_reviewer["id"],
@@ -224,7 +230,7 @@ class TestUpdateReview:
         assert result.comment == "Updated comment"
 
     async def test_not_reviewer(self, db_session, review_service, test_reviewer, test_user):
-        article_id = _make_review_article(db_session, test_user["id"])
+        article_id = await _make_review_article(db_session, test_user["id"])
         created = await review_service.create_review(
             CreateReviewDTO(article_id=article_id, status=ReviewStatusEnum.PENDING),
             user_id=test_reviewer["id"],
@@ -250,7 +256,7 @@ class TestUpdateReview:
 class TestRevokeReview:
 
     async def test_revoke_approved(self, db_session, review_service, test_reviewer, test_user):
-        article_id = _make_review_article(db_session, test_user["id"])
+        article_id = await _make_review_article(db_session, test_user["id"])
         created = await review_service.create_review(
             CreateReviewDTO(article_id=article_id, status=ReviewStatusEnum.APPROVED),
             user_id=test_reviewer["id"],
@@ -265,7 +271,7 @@ class TestRevokeReview:
         assert article.status == ArticleStatus.REJECTED.value
 
     async def test_not_reviewer(self, db_session, review_service, test_reviewer, test_user):
-        article_id = _make_review_article(db_session, test_user["id"])
+        article_id = await _make_review_article(db_session, test_user["id"])
         created = await review_service.create_review(
             CreateReviewDTO(article_id=article_id, status=ReviewStatusEnum.PENDING),
             user_id=test_reviewer["id"],
