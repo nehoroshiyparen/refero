@@ -1,3 +1,3 @@
 from .article_approvals_repo import ArticleApprovalsRepository
 from .article_authors_repo import ArticleAuthorsRepository
-from .article_repo import ArticleRepository
+from .article_repo import ArticleRepository, Article

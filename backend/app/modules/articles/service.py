@@ -4,6 +4,11 @@ from app.core.base import BaseService
 from app.core.exceptions import NotFound, Forbidden, BadRequest
 from app.core.responses import PaginationMeta
 
+from app.modules.journals.repository import JournalRepository, Journal
+from app.modules.citations.service import CitationService
+from app.modules.citations.schemas import CitationBriefPayload
+from app.modules.citations.models import CitationMatchStatus
+
 from .repositories import (
     ArticleRepository,
     ArticleAuthorsRepository,
@@ -32,6 +37,7 @@ class ArticleService(BaseService):
         self._article_repo = ArticleRepository(self._session)
         self._article_approvals_repo = ArticleApprovalsRepository(self._session)
         self._article_authors_repo = ArticleAuthorsRepository(self._session)
+        self._journal_repo: JournalRepository = JournalRepository(self._session)
 
     # ------------------------------------------------------------------ #
     #  READ
@@ -79,7 +85,17 @@ class ArticleService(BaseService):
         self,
         dto: ArticleCreateDTO,
         user_id: uuid.UUID,
-    ) -> ArticlePayload:
+    ) -> ArticleFullPayload:
+        if dto.journal_id:
+            journal_exists = await (
+                self._journal_repo.query()
+                .where(Journal.id == dto.journal_id)
+                .one_or_none(self._session)
+            )
+
+            if not journal_exists:
+                raise NotFound("Specified journal is not found")
+
         article = await self._article_repo.create({
             "id": str(uuid.uuid4()),
             "title": dto.title,
@@ -100,14 +116,22 @@ class ArticleService(BaseService):
             "author_id": str(user_id),
         })
 
-        return self._to_payload(article)
+        if dto.citations:
+            citation_service = CitationService(self._session)
+            await citation_service.resolve_citations(
+                article.id,
+                citations=dto.citations
+            )
+
+        full = await self._get_article_full_or_fail(article.id)
+        return self._to_full_payload(full)
 
     async def update_article(
         self,
         id: uuid.UUID,
         dto: ArticleUpdateDTO,
         user_id: uuid.UUID,
-    ) -> ArticlePayload:
+    ) -> ArticleFullPayload:
         article = await self._get_article_or_fail(id)
 
         if article.status != ArticleStatus.DRAFT:
@@ -116,12 +140,32 @@ class ArticleService(BaseService):
         await self._check_is_author(id, user_id)
 
         data: dict = dto.model_dump(exclude_unset=True)
+        data.pop("citations", None)
         data["updated_by_user_id"] = str(user_id)
-        if "journal_id" in data and data["journal_id"] is not None:
-            data["journal_id"] = str(data["journal_id"])
+        if "journal_id" in data:
+            if data["journal_id"] is not None:
+                journal = await (
+                    self._journal_repo.query()
+                    .where(Journal.id == data["journal_id"])
+                    .one_or_none(self._session)
+                )
+                if not journal:
+                    raise NotFound("Specified journal is not found")
+                data["journal_id"] = str(data["journal_id"])
+            else:
+                data["journal_id"] = None
 
-        updated = await self._article_repo.update(id, data)
-        return self._to_payload(updated)
+        await self._article_repo.update(id, data)
+
+        if dto.citations is not None:
+            citation_service = CitationService(self._session)
+            await citation_service.replace_citations(
+                id,
+                citations=dto.citations,
+            )
+
+        full = await self._get_article_full_or_fail(id)
+        return self._to_full_payload(full)
 
     async def delete_article(
         self,
@@ -346,6 +390,17 @@ class ArticleService(BaseService):
                 name=article.journal.name,
             )
 
+        citations = []
+        for c in (article.citations_from or []):
+            citations.append(CitationBriefPayload(
+                id=c.id,
+                to_article_id=c.to_article_id,
+                doi=c.doi,
+                raw_reference=c.raw_reference,
+                match_status=CitationMatchStatus(c.match_status),
+                created_at=c.created_at,
+            ))
+
         return ArticleFullPayload(
             id=article.id,
             title=article.title,
@@ -366,6 +421,7 @@ class ArticleService(BaseService):
             updated_at=article.updated_at,
             authors=authors,
             journal=journal,
+            citations=citations,
         )
     
     # ------------------------------------------------------------------ #
@@ -388,6 +444,7 @@ class ArticleService(BaseService):
             .where(Article.id == id)
             .with_authors()
             .with_journal()
+            .with_citations()
             .one_or_none(self._session)
         )
         if not article:

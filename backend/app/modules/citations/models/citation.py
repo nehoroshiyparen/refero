@@ -1,23 +1,39 @@
 import uuid
-from sqlalchemy import DateTime, ForeignKey, func
+from sqlalchemy import String, Text, DateTime, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from app.infrastructure.database import Base
+from app.infrastructure.database import BaseModel
+from .enum import CitationMatchStatus
 
 if TYPE_CHECKING:
-    from backend.app.modules.articles.models.article import Article
+    from app.modules.articles.models.article import Article
 
-class Citation(Base):
+class Citation(BaseModel):
     __tablename__ = "citations"
     
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
 
-    from_article_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"))
-    to_article_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"))
+    from_article_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("articles.id", ondelete="CASCADE"),
+    )
+    to_article_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("articles.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    doi: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    raw_reference: Mapped[str | None] = mapped_column(Text, nullable=True)
+    match_status: Mapped[str] = mapped_column(
+        String(20), default=CitationMatchStatus.EXTERNAL.value,
+    )
 
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
-    from_article: Mapped["Article"] = relationship(foreign_keys=[from_article_id], back_populates="citations_from")
-    to_article: Mapped["Article"] = relationship(foreign_keys=[to_article_id], back_populates="citations_to")
+    from_article: Mapped["Article"] = relationship(
+        foreign_keys=[from_article_id], back_populates="citations_from",
+    )
+    to_article: Mapped["Article | None"] = relationship(
+        foreign_keys=[to_article_id], back_populates="citations_to",
+    )
