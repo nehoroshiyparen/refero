@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Generic, TypeVar, Type, Self
-from sqlalchemy import Select, select, and_, or_
+from sqlalchemy import Select, select, and_, or_, func
 
 ModelType = TypeVar("ModelType")
 
@@ -16,11 +16,9 @@ class BaseQueryBuilder(Generic[ModelType]):
                 if or_
                 else and_(*filters)
             )
-
             self._stmt = self._stmt.where(condition)
-
         return self
-    
+
     def limit(self, limit: int) -> Self:
         self._stmt = self._stmt.limit(limit)
         return self
@@ -31,7 +29,19 @@ class BaseQueryBuilder(Generic[ModelType]):
 
     def build(self) -> Select:
         return self._stmt
-    
+
+    async def count(self, session: AsyncSession) -> int:
+        """Посчитать кол-во записей с учётом фильтров, без limit/offset."""
+        # Сбрасываем limit/offset для count-запроса
+        subq = self._stmt.subquery()
+        count_stmt = select(func.count()).select_from(subq)
+        result = await session.execute(count_stmt)
+        return result.scalar_one()
+
+    async def all(self, session: AsyncSession) -> list[ModelType]:
+        result = await session.execute(self._stmt)
+        return list(result.scalars().all())
+
     async def one_or_none(self, session: AsyncSession) -> ModelType | None:
-        result = await session.execute(self._stmt) 
+        result = await session.execute(self._stmt)
         return result.scalar_one_or_none()

@@ -1,9 +1,9 @@
 import uuid
 from pydantic import BaseModel, Field
-from ..models import ArticleStatus
+from ...models import ArticleStatus
 
 class ArticleFiltersDTO(BaseModel):
-    query: str | None = None
+    query: str | None = Field(default=None, description="Search by title or abstract")
 
     status: ArticleStatus | None = None
 

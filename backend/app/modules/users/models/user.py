@@ -11,12 +11,11 @@ from .enum import RoleName
 if TYPE_CHECKING:
     from .role import Role
     from app.modules.authors.models.author_profile import AuthorProfile
-    from app.modules.reviewers.models.reviewer_profile import ReviewerProfile
+    from app.modules.reviews.models import ReviewerProfile, Review
     from app.modules.auth.models import RefreshToken
     from app.modules.articles.models.article_authors import ArticleAuthors
     from app.modules.articles.models.article_approvals import ArticleApprovals
     from app.modules.articles.models.arcticle import Article
-    from app.modules.reviewers.models.review import Review
 
 class User(Base):
     __tablename__ = "users"
@@ -52,6 +51,11 @@ class User(Base):
 
     refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
+    )
+
+    created_articles: Mapped[list["Article"]] = relationship(
+        back_populates="creator",
+        foreign_keys="[Article.creator_id]"
     )
 
     articles_as_author: Mapped[list["ArticleAuthors"]] = relationship(

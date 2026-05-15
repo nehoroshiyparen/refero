@@ -1,6 +1,7 @@
 PYTHON = .venv/Scripts/python.exe
 COMPOSE = docker compose -f ../docker-compose.yml
 EXEC = $(COMPOSE) exec backend
+TEST_COMPOSE = docker compose -f ../docker-compose.test.yml
 
 .PHONY: add install remove
 
@@ -34,3 +35,16 @@ makemigrations:
 
 history:
 	$(EXEC) alembic history --verbose
+
+test-up:
+	$(TEST_COMPOSE) up -d test-db --wait
+
+test-down:
+	$(TEST_COMPOSE) stop test-db
+	$(TEST_COMPOSE) rm -f test-db
+
+test:
+	$(TEST_COMPOSE) exec -e TEST_DB_HOST=test-db backend python -m pytest $(args)
+
+test-all:
+	$(TEST_COMPOSE) up -d --wait && $(EXEC) python -m pytest $(args); RET=$$?; $(TEST_COMPOSE) down; exit $$RET

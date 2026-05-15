@@ -1,82 +1,168 @@
-from fastapi import APIRouter, Depends, Request, Response, Cookie, status
-from app.core.responses import SuccessResponse
+import uuid
 
+from fastapi import APIRouter, Depends, status
+from fastapi.responses import FileResponse
+
+from app.core.responses import SuccessResponse
+from app.core.dependencies import get_current_user
+from app.core.deps import get_service
+from app.modules.auth.schemas import AccessTokenPayload
+
+from .service import ArticleService
 from .schemas import (
     ArticleUpdateDTO,
     ArticleCreateDTO,
-    ArticleFiltersDTO
+    ArticleFiltersDTO,
+    AddAuthorDTO,
 )
 
 router = APIRouter()
 
+# ── Routes ──────────────────────────────────────────────────────
+
 @router.get(
     "/",
-    response_model=SuccessResponse
+    response_model=SuccessResponse,
+    summary="Список статей с фильтрацией",
 )
 async def get_articles(
     filters: ArticleFiltersDTO = Depends(),
+    service: ArticleService = Depends(get_service(ArticleService)),
 ):
-    pass
+    items, meta = await service.get_articles(filters)
+    return SuccessResponse(
+        data=[item.model_dump() for item in items],
+        meta=meta.model_dump(),
+    )
+
 
 @router.get(
     "/{id}",
-    response_model=SuccessResponse
+    response_model=SuccessResponse,
+    summary="Статья по ID",
 )
-async def get_article_by_id(id: int):
-    pass
+async def get_article_by_id(
+    id: uuid.UUID,
+    service: ArticleService = Depends(get_service(ArticleService)),
+):
+    result = await service.get_article_by_id(id)
+    return SuccessResponse(data=result.model_dump())
+
 
 @router.post(
     "/",
-    response_model=SuccessResponse
+    response_model=SuccessResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Создать статью",
 )
 async def create_article(
     dto: ArticleCreateDTO,
+    user: AccessTokenPayload = Depends(get_current_user),
+    service: ArticleService = Depends(get_service(ArticleService)),
 ):
-    pass
+    result = await service.create_article(dto, user_id=user.id)
+    return SuccessResponse(
+        message="Article created",
+        data=result.model_dump(),
+    )
+
 
 @router.put(
     "/{id}",
-    response_model=SuccessResponse
+    response_model=SuccessResponse,
+    summary="Обновить статью",
 )
 async def update_article(
-    id: int, 
-    dto: ArticleUpdateDTO
+    id: uuid.UUID,
+    dto: ArticleUpdateDTO,
+    user: AccessTokenPayload = Depends(get_current_user),
+    service: ArticleService = Depends(get_service(ArticleService)),
 ):
-    pass
+    result = await service.update_article(id, dto, user_id=user.id)
+    return SuccessResponse(
+        message="Article updated",
+        data=result.model_dump(),
+    )
+
 
 @router.delete(
     "/{id}",
-    response_model=SuccessResponse
+    response_model=SuccessResponse,
+    summary="Удалить статью",
 )
 async def delete_article(
-    id: int,
+    id: uuid.UUID,
+    user: AccessTokenPayload = Depends(get_current_user),
+    service: ArticleService = Depends(get_service(ArticleService)),
 ):
-    pass
+    await service.delete_article(id, user_id=user.id)
+    return SuccessResponse(message="Article deleted")
+
 
 @router.post(
     "/{id}/submit-for-approval",
-    response_model=SuccessResponse
+    response_model=SuccessResponse,
+    summary="Отправить на апрув соавторам",
 )
-async def submit_for_approval(id: int):
-    pass
+async def submit_for_approval(
+    id: uuid.UUID,
+    user: AccessTokenPayload = Depends(get_current_user),
+    service: ArticleService = Depends(get_service(ArticleService)),
+):
+    result = await service.submit_for_approval(id, user_id=user.id)
+    return SuccessResponse(
+        message=result.message,
+        data=result.model_dump(),
+    )
+
 
 @router.post(
     "/{id}/authors",
-    response_model=SuccessResponse
+    response_model=SuccessResponse,
+    summary="Добавить соавтора",
 )
-async def add_author(id: int):
-    pass
+async def add_author(
+    id: uuid.UUID,
+    dto: AddAuthorDTO,
+    user: AccessTokenPayload = Depends(get_current_user),
+    service: ArticleService = Depends(get_service(ArticleService)),
+):
+    result = await service.add_author(id, dto, user_id=user.id)
+    return SuccessResponse(
+        message=result.message,
+        data=result.model_dump(),
+    )
+
 
 @router.delete(
-    "/{id}/authors",
-    response_model=SuccessResponse
+    "/{id}/authors/{author_id}",       
+    response_model=SuccessResponse,
+    summary="Удалить соавтора",
 )
-async def delete_author(id: int):
-    pass
+async def delete_author(
+    id: uuid.UUID,
+    author_id: uuid.UUID,                 # ←
+    user: AccessTokenPayload = Depends(get_current_user),
+    service: ArticleService = Depends(get_service(ArticleService)),
+):
+    result = await service.delete_author(id, author_id, user_id=user.id)
+    return SuccessResponse(
+        message=result.message,
+        data=result.model_dump(),
+    )
+
 
 @router.get(
-    "/{id}/download",
-    response_model=SuccessResponse
+    "/{id}/download",                    
+    summary="Скачать PDF статьи",
 )
-async def download_article(id: int):
-    pass
+async def download_article(
+    id: uuid.UUID,
+    service: ArticleService = Depends(get_service(ArticleService)),
+):
+    pdf_path = await service.download_article(id)
+    return FileResponse(
+        path=pdf_path,
+        media_type="application/pdf",
+        filename=pdf_path.split("/")[-1],
+    )

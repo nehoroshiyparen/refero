@@ -1,13 +1,15 @@
 from enum import Enum
 
-class ArticleStatus(Enum):
-    DRAFT = "draft"
-    REVIEW = "review"
-    PUBLISHED = "published"
-    REJECTED = "rejected"
+class ArticleStatus(str, Enum):
+    DRAFT = "DRAFT"
+    PENDING_APPROVAL = "PENDING_APPROVAL"
+
+    REVIEW = "REVIEW"
+    PUBLISHED = "PUBLISHED"
+    REJECTED = "REJECTED"
 
 
-class ApprovalStatus(Enum):
-    PENDING = "pending"
-    APPROVED = "approved"
-    REJECTED = "rejected"
+class ApprovalStatus(str, Enum):
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"

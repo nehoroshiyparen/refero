@@ -1,0 +1,14 @@
+services:
+  test-db:
+    image: postgres:16
+    container_name: refero_test_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: refero_test
+    networks:
+      - refero_default
+
+networks:
+  refero_default:
+    external: true

@@ -1,12 +1,16 @@
-from fastapi import Header, Request
+from fastapi import Header, Request, Depends
+from fastapi.security import HTTPAuthorizationCredentials
 from jose.jwt import ExpiredSignatureError, JWTError
+
 from app.core.exceptions import Unauthorized
+from app.core.security import security_bearer
 from app.modules.auth.utils import decode_access_token
 from app.modules.auth.schemas import AccessTokenPayload
 
 async def get_current_user(
     request: Request,
     authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials = Depends(security_bearer),
 ) -> AccessTokenPayload:
     if not authorization:
         raise Unauthorized("Authorization header required")

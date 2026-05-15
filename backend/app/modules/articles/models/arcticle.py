@@ -31,9 +31,15 @@ class Article(Base):
     doi: Mapped[str | None] = mapped_column(String, unique=True, nullable=True)
 
     pdf_path: Mapped[str] = mapped_column(String, nullable=False)
+    
+    creator_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
 
     journal_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("journals.id"), nullable=True)
-    status: Mapped[ArticleStatus] = mapped_column(Enum(ArticleStatus), default=ArticleStatus.DRAFT)
+    status: Mapped[str] = mapped_column(
+        String(20),
+        ForeignKey("article_statuses.name"),
+        default=ArticleStatus.DRAFT.value,
+    )
 
     view_count: Mapped[int] = mapped_column(Integer, default=0)
     download_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -46,6 +52,7 @@ class Article(Base):
 
     journal: Mapped["Journal | None"] = relationship(back_populates="articles")
     authors: Mapped[list["ArticleAuthors"]] = relationship(back_populates="article", cascade="all, delete-orphan")
+    creator: Mapped["User"] = relationship(back_populates="created_articles", foreign_keys=[creator_id])
     approvals: Mapped[list["ArticleApprovals"]] = relationship(back_populates="article", cascade="all, delete-orphan")
     reviews: Mapped[list["Review"]] = relationship(back_populates="article", cascade="all, delete-orphan")
     citations_from: Mapped[list["Citation"]] = relationship(foreign_keys="Citation.from_article_id", back_populates="from_article")

@@ -13,3 +13,7 @@ pytest-asyncio
 httpx
 aiosqlite
 passlib[bcrypt]
+
+pytest
+pytest-asyncio
+aiosqlite
