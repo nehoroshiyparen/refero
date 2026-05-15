@@ -4,5 +4,8 @@ from .query_builder import JournalQueryBuilder
 from .models import Journal
 
 class JournalRepository(BaseRepository[Journal, JournalQueryBuilder]):
-    def __init__(self, model, session: AsyncSession):
-        super().__init__(model, session)
+    _query_builder = JournalQueryBuilder
+    _model = Journal
+
+    def __init__(self, session: AsyncSession):
+        super().__init__(session)

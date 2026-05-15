@@ -9,7 +9,7 @@ from datetime import datetime
 from app.infrastructure.database import BaseModel
 
 if TYPE_CHECKING:
-    from backend.app.modules.articles.models.article import Article
+    from app.modules.articles.models.article import Article
 
 class Journal(BaseModel):
     __tablename__ = "journals"
