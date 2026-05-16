@@ -11,14 +11,15 @@ from app.core.dependencies import get_current_user
 from .service import UserService
 from .schemas import (
     UserFiltersDTO,
-    ProfileEditDTO
+    ProfileEditDTO,
+    UserPayload,
 )
 
 router = APIRouter()
 
 @router.get(
     "/me",
-    response_model=SuccessResponse
+    response_model=SuccessResponse[UserPayload],
 )
 async def me(
     service: UserService = Depends(get_service(UserService)),
@@ -29,7 +30,7 @@ async def me(
 
 @router.get(
     "/",
-    response_model=SuccessResponse
+    response_model=SuccessResponse[list[UserPayload]],
 )
 async def get_users(
     filters: UserFiltersDTO = Depends(),
@@ -43,7 +44,7 @@ async def get_users(
 
 @router.get(
     "/{id}",
-    response_model=SuccessResponse
+    response_model=SuccessResponse[UserPayload],
 )
 async def get_user(
     id: uuid.UUID,
@@ -54,7 +55,7 @@ async def get_user(
 
 @router.put(
     "/{id}",
-    response_model=SuccessResponse
+    response_model=SuccessResponse[UserPayload],
 )
 async def edit_profile(
     id: uuid.UUID,

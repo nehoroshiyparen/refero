@@ -9,7 +9,7 @@ from app.modules.auth.schemas import AccessTokenPayload
 from app.modules.users.models import RoleName
 
 from .service import ReviewService
-from .schemas import CreateReviewDTO, UpdateReviewDTO, ReviewFiltersDTO
+from .schemas import CreateReviewDTO, UpdateReviewDTO, ReviewFiltersDTO, ReviewPayload
 
 router = APIRouter()
 article_reviews_router = APIRouter(prefix="/articles")
@@ -17,7 +17,7 @@ article_reviews_router = APIRouter(prefix="/articles")
 
 @router.get(
     "/",
-    response_model=SuccessResponse,
+    response_model=SuccessResponse[list[ReviewPayload]],
     summary="Мои рецензии",
 )
 async def my_reviews(
@@ -34,7 +34,7 @@ async def my_reviews(
 
 @article_reviews_router.get(
     "/{id}/reviews",
-    response_model=SuccessResponse,
+    response_model=SuccessResponse[list[ReviewPayload]],
     summary="Рецензии статьи",
 )
 async def get_article_reviews(
@@ -48,7 +48,7 @@ async def get_article_reviews(
 
 @router.post(
     "/",
-    response_model=SuccessResponse,
+    response_model=SuccessResponse[ReviewPayload],
     status_code=status.HTTP_201_CREATED,
     summary="Создать рецензию",
 )
@@ -66,7 +66,7 @@ async def create_review(
 
 @router.put(
     "/{id}",
-    response_model=SuccessResponse,
+    response_model=SuccessResponse[ReviewPayload],
     summary="Обновить рецензию",
 )
 async def update_review(
@@ -84,7 +84,7 @@ async def update_review(
 
 @router.post(
     "/{id}/revoke",
-    response_model=SuccessResponse,
+    response_model=SuccessResponse[ReviewPayload],
     summary="Отозвать рецензию",
 )
 async def revoke_review(

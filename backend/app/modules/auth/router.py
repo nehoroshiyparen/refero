@@ -3,7 +3,8 @@ from app.core.responses import SuccessResponse
 from .schemas import (
     RegisterDTO,
     LoginDTO,
-    AccessTokenPayload
+    AccessTokenPayload,
+    AuthorizationResponse
 )
 from app.core.deps import get_service
 from app.core.dependencies import (
@@ -17,7 +18,7 @@ router = APIRouter()
 
 @router.post(
     "/register",
-    response_model=SuccessResponse
+    response_model=SuccessResponse[AuthorizationResponse]
 )
 async def register(
     dto: RegisterDTO,
@@ -39,7 +40,7 @@ async def register(
 
 @router.post(
     "/login",
-    response_model=SuccessResponse
+    response_model=SuccessResponse[AuthorizationResponse]
 )
 async def login(
     dto: LoginDTO,
@@ -76,7 +77,7 @@ async def logout(
 
 @router.post(
     "/refresh",
-    response_model=SuccessResponse,
+    response_model=None,
     status_code=status.HTTP_200_OK,
 )
 async def refresh(
