@@ -6,34 +6,61 @@ from sqlalchemy import text
 
 from app.modules.reviews.service import ReviewService
 from app.modules.reviews.models import ReviewStatusEnum
-from app.modules.reviews.schemas import CreateReviewDTO, UpdateReviewDTO, ReviewFiltersDTO
+from app.modules.reviews.schemas import CreateReviewDTO, CreateCommentDTO
 from app.modules.articles.models.enum import ArticleStatus
 from app.core.exceptions import NotFound, Forbidden, BadRequest
 
 pytestmark = pytest.mark.asyncio
 
 
-@pytest_asyncio.fixture(loop_scope="session")
-async def test_reviewer(db_session) -> dict:
-    from app.modules.users.models.user import User
+# ── Helpers ────────────────────────────────────────────────────
 
-    user_id = uuid.uuid4()
-    user = User(
-        id=user_id,
-        username=f"test_reviewer_{user_id.hex[:8]}",
-        email=f"reviewer_{user_id.hex[:8]}@test.com",
-        hashed_password="fake_hash",
-        full_name="Test Reviewer",
-        role_name="REVIEWER",
+
+async def _make_version_for_review(db_session, creator_id) -> uuid.UUID:
+    article_id = uuid.uuid4()
+    version_id = uuid.uuid4()
+    await db_session.execute(
+        text("""
+            INSERT INTO articles (id, creator_id)
+            VALUES (:id, :creator)
+        """),
+        {"id": str(article_id), "creator": str(creator_id)},
     )
-    db_session.add(user)
+    await db_session.execute(
+        text("""
+            INSERT INTO article_versions (id, article_id, version_number, title, abstract, keywords, language, pdf_path, status, updated_by_user_id)
+            VALUES (:id, :article_id, 1, :title, NULL, :keywords, :lang, :pdf, :status, :updated_by)
+        """),
+        {
+            "id": str(version_id),
+            "article_id": str(article_id),
+            "title": "Test Article",
+            "keywords": [],
+            "lang": "en",
+            "pdf": "/uploads/test.pdf",
+            "status": ArticleStatus.REVIEW.value,
+            "updated_by": str(creator_id),
+        },
+    )
+    await db_session.execute(
+        text("UPDATE articles SET current_version_id = :version_id WHERE id = :article_id"),
+        {"version_id": str(version_id), "article_id": str(article_id)},
+    )
     await db_session.flush()
-    return {
-        "id": user_id,
-        "username": user.username,
-        "email": user.email,
-        "full_name": user.full_name,
-    }
+    return version_id
+
+
+async def _make_assignment(db_session, version_id, reviewer_id) -> uuid.UUID:
+    assignment_id = uuid.uuid4()
+    await db_session.execute(
+        text("""
+            INSERT INTO review_assignments (id, article_version_id, reviewer_id)
+            VALUES (:id, :version_id, :reviewer_id)
+        """),
+        {"id": str(assignment_id), "version_id": str(version_id), "reviewer_id": str(reviewer_id)},
+    )
+    await db_session.flush()
+    return assignment_id
 
 
 @pytest.fixture
@@ -41,249 +68,210 @@ def review_service(db_session):
     return ReviewService(db_session)
 
 
-async def _make_review_article(db_session, creator_id) -> uuid.UUID:
-    article_id = uuid.uuid4()
-    await db_session.execute(
-        text("""
-            INSERT INTO articles (id, title, pdf_path, creator_id, status, language, keywords, is_visible)
-            VALUES (:id, :title, :pdf, :creator, :status, :language, :keywords, :is_visible)
-        """),
-        {
-            "id": str(article_id),
-            "title": "Review Target Article",
-            "pdf": "/uploads/review.pdf",
-            "creator": str(creator_id),
-            "status": ArticleStatus.REVIEW.value,
-            "language": "en",
-            "keywords": [],
-            "is_visible": True,
-        },
-    )
-    await db_session.flush()
-    return article_id
+# ── ASSIGNMENTS ────────────────────────────────────────────────
 
-
-# ── GET MY REVIEWS ────────────────────────────────────────────
 
 @pytest.mark.asyncio(loop_scope="session")
-class TestGetMyReviews:
+class TestGetMyAssignments:
 
-    async def test_my_reviews_with_filter(
-        self, db_session, review_service, test_reviewer, test_user
-    ):
-        article_id = await _make_review_article(db_session, test_user["id"])
-        dto = CreateReviewDTO(article_id=article_id, status=ReviewStatusEnum.PENDING)
-        await review_service.create_review(dto, user_id=test_reviewer["id"])
+    async def test_empty(self, review_service, test_reviewer):
+        result = await review_service.get_my_assignments(test_reviewer["id"])
+        assert result == []
 
-        items, meta = await review_service.get_my_reviews(
-            user_id=test_reviewer["id"],
-            filters=ReviewFiltersDTO(status=ReviewStatusEnum.PENDING),
+    async def test_success(self, db_session, review_service, test_reviewer, test_user):
+        version_id = await _make_version_for_review(db_session, test_user["id"])
+        await _make_assignment(db_session, version_id, test_reviewer["id"])
+
+        result = await review_service.get_my_assignments(test_reviewer["id"])
+        assert len(result) == 1
+        assert result[0].article_version_id == version_id
+        assert result[0].reviewer_id == test_reviewer["id"]
+        assert result[0].review_status is None  # review not yet submitted
+
+    async def test_with_review(self, db_session, review_service, test_reviewer, test_user):
+        version_id = await _make_version_for_review(db_session, test_user["id"])
+        assignment_id = await _make_assignment(db_session, version_id, test_reviewer["id"])
+        await db_session.execute(
+            text("""
+                INSERT INTO reviews (id, review_assignment_id, status, completed_at)
+                VALUES (:id, :assignment_id, :status, NOW())
+            """),
+            {"id": str(uuid.uuid4()), "assignment_id": str(assignment_id), "status": ReviewStatusEnum.APPROVED.value},
         )
-        assert len(items) == 1
-        assert items[0].status == ReviewStatusEnum.PENDING
+        await db_session.flush()
 
-    async def test_my_reviews_empty(
-        self, review_service, test_user
-    ):
-        items, meta = await review_service.get_my_reviews(user_id=test_user["id"], filters=ReviewFiltersDTO())
-        assert items == []
+        result = await review_service.get_my_assignments(test_reviewer["id"])
+        assert len(result) == 1
+        assert result[0].review_status == ReviewStatusEnum.APPROVED
+        assert result[0].review_completed_at is not None
 
-
-# ── GET ARTICLE REVIEWS ───────────────────────────────────────
 
 @pytest.mark.asyncio(loop_scope="session")
-class TestGetArticleReviews:
+class TestGetAssignmentByVersion:
 
-    async def test_article_reviews_success(
-        self, db_session, review_service, test_reviewer, test_user
-    ):
-        article_id = await _make_review_article(db_session, test_user["id"])
-        dto = CreateReviewDTO(article_id=article_id, status=ReviewStatusEnum.PENDING)
-        await review_service.create_review(dto, user_id=test_reviewer["id"])
+    async def test_success(self, db_session, review_service, test_reviewer, test_user):
+        version_id = await _make_version_for_review(db_session, test_user["id"])
+        await _make_assignment(db_session, version_id, test_reviewer["id"])
 
-        items = await review_service.get_article_reviews(article_id)
-        assert len(items) == 1
-        assert items[0].article_id == article_id
+        result = await review_service.get_assignment_by_version(version_id)
+        assert result is not None
+        assert result.reviewer_id == test_reviewer["id"]
 
-    async def test_article_reviews_empty(self, review_service):
-        items = await review_service.get_article_reviews(uuid.uuid4())
-        assert items == []
+    async def test_not_found(self, review_service):
+        result = await review_service.get_assignment_by_version(uuid.uuid4())
+        assert result is None
 
 
-# ── CREATE REVIEW ─────────────────────────────────────────────
+# ── CREATE REVIEW ──────────────────────────────────────────────
+
 
 @pytest.mark.asyncio(loop_scope="session")
 class TestCreateReview:
 
-    async def test_pending(self, db_session, review_service, test_reviewer, test_user):
-        article_id = await _make_review_article(db_session, test_user["id"])
-        dto = CreateReviewDTO(
-            article_id=article_id,
-            status=ReviewStatusEnum.PENDING,
-            comment="Will review soon",
-        )
-        result = await review_service.create_review(dto, user_id=test_reviewer["id"])
-
-        assert result.article_id == article_id
-        assert result.reviewer_id == test_reviewer["id"]
-        assert result.status == ReviewStatusEnum.PENDING
-        assert result.comment == "Will review soon"
-
-        article = await review_service._get_article_or_fail(article_id)
-        assert article.status == ArticleStatus.REVIEW.value
-
     async def test_approved(self, db_session, review_service, test_reviewer, test_user):
-        article_id = await _make_review_article(db_session, test_user["id"])
-        dto = CreateReviewDTO(
-            article_id=article_id,
-            status=ReviewStatusEnum.APPROVED,
-            comment="Looks great!",
-        )
+        version_id = await _make_version_for_review(db_session, test_user["id"])
+        assignment_id = await _make_assignment(db_session, version_id, test_reviewer["id"])
+
+        dto = CreateReviewDTO(review_assignment_id=assignment_id, status=ReviewStatusEnum.APPROVED)
         result = await review_service.create_review(dto, user_id=test_reviewer["id"])
 
+        assert result.review_assignment_id == assignment_id
         assert result.status == ReviewStatusEnum.APPROVED
+        assert result.completed_at is not None
 
-        article = await review_service._get_article_or_fail(article_id)
-        assert article.status == ArticleStatus.PUBLISHED.value
-        assert article.published_at is not None
+        version = await db_session.execute(
+            text("SELECT status, published_at FROM article_versions WHERE id = :id"),
+            {"id": str(version_id)},
+        )
+        row = version.one()
+        assert row.status == ArticleStatus.PUBLISHED.value
+        assert row.published_at is not None
 
     async def test_rejected(self, db_session, review_service, test_reviewer, test_user):
-        article_id = await _make_review_article(db_session, test_user["id"])
-        dto = CreateReviewDTO(
-            article_id=article_id,
-            status=ReviewStatusEnum.REJECTED,
-        )
-        result = await review_service.create_review(dto, user_id=test_reviewer["id"])
+        version_id = await _make_version_for_review(db_session, test_user["id"])
+        assignment_id = await _make_assignment(db_session, version_id, test_reviewer["id"])
 
-        assert result.status == ReviewStatusEnum.REJECTED
-
-        article = await review_service._get_article_or_fail(article_id)
-        assert article.status == ArticleStatus.REJECTED.value
-
-    async def test_requesting_changes(self, db_session, review_service, test_reviewer, test_user):
-        article_id = await _make_review_article(db_session, test_user["id"])
-        dto = CreateReviewDTO(
-            article_id=article_id,
-            status=ReviewStatusEnum.REQUESTING_CHANGES,
-        )
-        result = await review_service.create_review(dto, user_id=test_reviewer["id"])
-
-        assert result.status == ReviewStatusEnum.REQUESTING_CHANGES
-
-        article = await review_service._get_article_or_fail(article_id)
-        assert article.status == ArticleStatus.DRAFT.value
-
-    async def test_article_not_in_review(self, db_session, review_service, test_reviewer, test_user):
-        article_id = uuid.uuid4()
-        await db_session.execute(
-            text("""
-                INSERT INTO articles (id, title, pdf_path, creator_id, status, language, keywords, is_visible)
-                VALUES (:id, :title, :pdf, :creator, :status, :language, :keywords, :is_visible)
-            """),
-            {
-                "id": str(article_id),
-                "title": "Draft Article",
-                "pdf": "/uploads/draft.pdf",
-                "creator": str(test_user["id"]),
-                "status": ArticleStatus.DRAFT.value,
-                "language": "en",
-                "keywords": [],
-                "is_visible": True,
-            },
-        )
-        await db_session.flush()
-
-        dto = CreateReviewDTO(article_id=article_id, status=ReviewStatusEnum.PENDING)
-        with pytest.raises(BadRequest, match="review status"):
-            await review_service.create_review(dto, user_id=test_reviewer["id"])
-
-    async def test_duplicate(self, db_session, review_service, test_reviewer, test_user):
-        article_id = await _make_review_article(db_session, test_user["id"])
-        dto = CreateReviewDTO(article_id=article_id, status=ReviewStatusEnum.PENDING)
+        dto = CreateReviewDTO(review_assignment_id=assignment_id, status=ReviewStatusEnum.REJECTED)
         await review_service.create_review(dto, user_id=test_reviewer["id"])
 
-        with pytest.raises(BadRequest, match="already"):
+        row = (await db_session.execute(
+            text("SELECT status FROM article_versions WHERE id = :id"),
+            {"id": str(version_id)},
+        )).scalar_one()
+        assert row == ArticleStatus.REJECTED.value
+
+    async def test_requesting_changes(self, db_session, review_service, test_reviewer, test_user):
+        version_id = await _make_version_for_review(db_session, test_user["id"])
+        assignment_id = await _make_assignment(db_session, version_id, test_reviewer["id"])
+
+        dto = CreateReviewDTO(review_assignment_id=assignment_id, status=ReviewStatusEnum.REQUESTING_CHANGES)
+        await review_service.create_review(dto, user_id=test_reviewer["id"])
+
+        row = (await db_session.execute(
+            text("SELECT status FROM article_versions WHERE id = :id"),
+            {"id": str(version_id)},
+        )).scalar_one()
+        assert row == ArticleStatus.DRAFT.value
+
+    async def test_not_assigned_reviewer(self, db_session, review_service, test_reviewer, test_user):
+        other_reviewer_id = uuid.uuid4()
+        version_id = await _make_version_for_review(db_session, test_user["id"])
+        assignment_id = await _make_assignment(db_session, version_id, test_reviewer["id"])
+
+        dto = CreateReviewDTO(review_assignment_id=assignment_id, status=ReviewStatusEnum.APPROVED)
+        with pytest.raises(Forbidden, match="not the assigned reviewer"):
+            await review_service.create_review(dto, user_id=other_reviewer_id)
+
+    async def test_already_exists(self, db_session, review_service, test_reviewer, test_user):
+        version_id = await _make_version_for_review(db_session, test_user["id"])
+        assignment_id = await _make_assignment(db_session, version_id, test_reviewer["id"])
+
+        dto = CreateReviewDTO(review_assignment_id=assignment_id, status=ReviewStatusEnum.APPROVED)
+        await review_service.create_review(dto, user_id=test_reviewer["id"])
+
+        with pytest.raises(BadRequest, match="already exists"):
             await review_service.create_review(dto, user_id=test_reviewer["id"])
 
-    async def test_article_not_found(self, review_service, test_reviewer):
-        dto = CreateReviewDTO(article_id=uuid.uuid4(), status=ReviewStatusEnum.PENDING)
-        with pytest.raises(NotFound):
+    async def test_assignment_not_found(self, review_service, test_reviewer):
+        dto = CreateReviewDTO(review_assignment_id=uuid.uuid4(), status=ReviewStatusEnum.APPROVED)
+        with pytest.raises(NotFound, match="assignment"):
+            await review_service.create_review(dto, user_id=test_reviewer["id"])
+
+    async def test_version_not_in_review(self, db_session, review_service, test_reviewer, test_user):
+        version_id = await _make_version_for_review(db_session, test_user["id"])
+        await db_session.execute(
+            text("UPDATE article_versions SET status = :status WHERE id = :id"),
+            {"status": ArticleStatus.DRAFT.value, "id": str(version_id)},
+        )
+        assignment_id = await _make_assignment(db_session, version_id, test_reviewer["id"])
+
+        dto = CreateReviewDTO(review_assignment_id=assignment_id, status=ReviewStatusEnum.APPROVED)
+        with pytest.raises(BadRequest, match="not in review status"):
             await review_service.create_review(dto, user_id=test_reviewer["id"])
 
 
-# ── UPDATE REVIEW ─────────────────────────────────────────────
+# ── GET REVIEW BY ASSIGNMENT ───────────────────────────────────
+
 
 @pytest.mark.asyncio(loop_scope="session")
-class TestUpdateReview:
+class TestGetReviewByAssignment:
 
-    async def test_comment(self, db_session, review_service, test_reviewer, test_user):
-        article_id = await _make_review_article(db_session, test_user["id"])
-        created = await review_service.create_review(
-            CreateReviewDTO(article_id=article_id, status=ReviewStatusEnum.PENDING),
+    async def test_success(self, db_session, review_service, test_reviewer, test_user):
+        version_id = await _make_version_for_review(db_session, test_user["id"])
+        assignment_id = await _make_assignment(db_session, version_id, test_reviewer["id"])
+
+        await review_service.create_review(
+            CreateReviewDTO(review_assignment_id=assignment_id, status=ReviewStatusEnum.APPROVED),
             user_id=test_reviewer["id"],
         )
 
-        dto = UpdateReviewDTO(comment="Updated comment")
-        result = await review_service.update_review(
-            created.id, dto, user_id=test_reviewer["id"]
-        )
-        assert result.comment == "Updated comment"
+        result = await review_service.get_review_by_assignment(assignment_id)
+        assert result is not None
+        assert result.status == ReviewStatusEnum.APPROVED
 
-    async def test_not_reviewer(self, db_session, review_service, test_reviewer, test_user):
-        article_id = await _make_review_article(db_session, test_user["id"])
-        created = await review_service.create_review(
-            CreateReviewDTO(article_id=article_id, status=ReviewStatusEnum.PENDING),
-            user_id=test_reviewer["id"],
-        )
+    async def test_no_review(self, db_session, review_service, test_reviewer, test_user):
+        version_id = await _make_version_for_review(db_session, test_user["id"])
+        assignment_id = await _make_assignment(db_session, version_id, test_reviewer["id"])
 
-        dto = UpdateReviewDTO(comment="Hacked")
-        with pytest.raises(Forbidden):
-            await review_service.update_review(
-                created.id, dto, user_id=test_user["id"]
-            )
-
-    async def test_not_found(self, review_service, test_reviewer):
-        dto = UpdateReviewDTO(comment="Ghost")
-        with pytest.raises(NotFound):
-            await review_service.update_review(
-                uuid.uuid4(), dto, user_id=test_reviewer["id"]
-            )
+        result = await review_service.get_review_by_assignment(assignment_id)
+        assert result is None
 
 
-# ── REVOKE REVIEW ─────────────────────────────────────────────
+# ── COMMENTS ───────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio(loop_scope="session")
-class TestRevokeReview:
+class TestComments:
 
-    async def test_revoke_approved(self, db_session, review_service, test_reviewer, test_user):
-        article_id = await _make_review_article(db_session, test_user["id"])
-        created = await review_service.create_review(
-            CreateReviewDTO(article_id=article_id, status=ReviewStatusEnum.APPROVED),
-            user_id=test_reviewer["id"],
-        )
+    async def test_create_success(self, db_session, review_service, test_user):
+        version_id = await _make_version_for_review(db_session, test_user["id"])
 
-        result = await review_service.revoke_review(
-            created.id, user_id=test_reviewer["id"]
-        )
-        assert result.status == ReviewStatusEnum.REJECTED
+        dto = CreateCommentDTO(article_version_id=version_id, content="Nice work!")
+        result = await review_service.create_comment(dto, user_id=test_user["id"])
 
-        article = await review_service._get_article_or_fail(article_id)
-        assert article.status == ArticleStatus.REJECTED.value
+        assert result.article_version_id == version_id
+        assert result.user_id == test_user["id"]
+        assert result.content == "Nice work!"
 
-    async def test_not_reviewer(self, db_session, review_service, test_reviewer, test_user):
-        article_id = await _make_review_article(db_session, test_user["id"])
-        created = await review_service.create_review(
-            CreateReviewDTO(article_id=article_id, status=ReviewStatusEnum.PENDING),
-            user_id=test_reviewer["id"],
-        )
+    async def test_create_version_not_found(self, review_service, test_user):
+        dto = CreateCommentDTO(article_version_id=uuid.uuid4(), content="Ghost")
+        with pytest.raises(NotFound, match="version"):
+            await review_service.create_comment(dto, user_id=test_user["id"])
 
-        with pytest.raises(Forbidden):
-            await review_service.revoke_review(
-                created.id, user_id=test_user["id"]
-            )
+    async def test_get_empty(self, db_session, review_service, test_user):
+        version_id = await _make_version_for_review(db_session, test_user["id"])
+        result = await review_service.get_comments(version_id)
+        assert result == []
 
-    async def test_not_found(self, review_service, test_reviewer):
-        with pytest.raises(NotFound):
-            await review_service.revoke_review(
-                uuid.uuid4(), user_id=test_reviewer["id"]
-            )
+    async def test_get_success(self, db_session, review_service, test_user):
+        version_id = await _make_version_for_review(db_session, test_user["id"])
+
+        dto = CreateCommentDTO(article_version_id=version_id, content="First!")
+        await review_service.create_comment(dto, user_id=test_user["id"])
+        dto.content = "Second!"
+        await review_service.create_comment(dto, user_id=test_user["id"])
+
+        result = await review_service.get_comments(version_id)
+        assert len(result) == 2
+        assert result[0].content == "First!"
+        assert result[1].content == "Second!"

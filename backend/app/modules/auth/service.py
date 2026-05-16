@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base import BaseService
 
-from app.modules.users.repository import UserRepository, User
+from app.modules.users.repositories import UserRepository, User
 from .repository import TokenRepository, RefreshToken
 
 from app.core.exceptions import (

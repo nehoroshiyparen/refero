@@ -209,10 +209,13 @@ class TestUpdateArticle:
             )
 
     async def test_update_article_not_draft(self, service, draft_article, test_user, db_session):
-        # Меняем статус напрямую
         await db_session.execute(
-            text("UPDATE articles SET status = 'REVIEW' WHERE id = :id"),
-            {"id": str(draft_article.id)},
+            text("""
+                UPDATE article_versions
+                SET status = :status
+                WHERE article_id = :article_id
+            """),
+            {"status": ArticleStatus.REVIEW.value, "article_id": str(draft_article.id)},
         )
         await db_session.flush()
 
@@ -302,8 +305,12 @@ class TestDeleteArticle:
 
     async def test_delete_article_not_draft(self, service, draft_article, test_user, db_session):
         await db_session.execute(
-            text("UPDATE articles SET status = 'REVIEW' WHERE id = :id"),
-            {"id": str(draft_article.id)},
+            text("""
+                UPDATE article_versions
+                SET status = :status
+                WHERE article_id = :article_id
+            """),
+            {"status": ArticleStatus.REVIEW.value, "article_id": str(draft_article.id)},
         )
         await db_session.flush()
 
@@ -320,14 +327,13 @@ class TestDeleteArticle:
 @pytest.mark.asyncio(loop_scope="session")
 class TestSubmitForApproval:
 
-    async def test_submit_no_coauthors(self, service, draft_article, test_user):
+    async def test_submit_no_coauthors(self, service, draft_article, test_user, test_reviewer):
         result = await service.submit_for_approval(
             draft_article.id, user_id=test_user["id"]
         )
 
         assert "review" in result.message.lower()
 
-        # Статус должен быть REVIEW (нет соавторов → сразу в review)
         article = await service.get_article_by_id(draft_article.id)
         assert article.status == ArticleStatus.REVIEW
 
@@ -356,8 +362,12 @@ class TestSubmitForApproval:
 
     async def test_submit_not_draft(self, service, draft_article, test_user, db_session):
         await db_session.execute(
-            text("UPDATE articles SET status = 'REVIEW' WHERE id = :id"),
-            {"id": str(draft_article.id)},
+            text("""
+                UPDATE article_versions
+                SET status = :status
+                WHERE article_id = :article_id
+            """),
+            {"status": ArticleStatus.REVIEW.value, "article_id": str(draft_article.id)},
         )
         await db_session.flush()
 
@@ -407,8 +417,12 @@ class TestAuthorManagement:
         self, service, draft_article, test_user, test_coauthor, db_session
     ):
         await db_session.execute(
-            text("UPDATE articles SET status = 'REVIEW' WHERE id = :id"),
-            {"id": str(draft_article.id)},
+            text("""
+                UPDATE article_versions
+                SET status = :status
+                WHERE article_id = :article_id
+            """),
+            {"status": ArticleStatus.REVIEW.value, "article_id": str(draft_article.id)},
         )
         await db_session.flush()
 
@@ -479,3 +493,139 @@ class TestDownloadArticle:
     async def test_download_article_not_found(self, service):
         with pytest.raises(NotFound):
             await service.download_article(uuid.uuid4())
+
+
+# ── APPROVE VERSION ──────────────────────────────────────────
+
+@pytest.mark.asyncio(loop_scope="session")
+class TestApproveVersion:
+
+    async def test_approve_single_coauthor(
+        self, service, draft_article, test_user, test_coauthor, test_reviewer, db_session
+    ):
+        dto = AddAuthorDTO(author_id=test_coauthor["id"])
+        await service.add_author(draft_article.id, dto, user_id=test_user["id"])
+
+        result = await service.submit_for_approval(draft_article.id, user_id=test_user["id"])
+        assert "co-author" in result.message.lower()
+
+        version = await service.get_article_by_id(draft_article.id)
+        assert version.status == ArticleStatus.PENDING_APPROVAL
+
+        result = await service.approve_version(
+            draft_article.id, version_id=version.current_version_id, user_id=test_coauthor["id"], approved=True,
+        )
+        assert "review" in result.message.lower()
+
+        updated = await service.get_article_by_id(draft_article.id)
+        assert updated.status == ArticleStatus.REVIEW
+
+    async def test_approve_with_pending_left(
+        self, service, draft_article, test_user, test_coauthor, test_reviewer, db_session
+    ):
+        # Создаём второго соавтора, чтобы после одобрения первого оставался pending
+        second_id = uuid.uuid4()
+        from app.modules.users.models.user import User
+        second = User(
+            id=second_id,
+            username=f"second_coauthor_{second_id.hex[:8]}",
+            email=f"second_{second_id.hex[:8]}@test.com",
+            hashed_password="fake_hash",
+            full_name="Second Co-Author",
+            role_name="AUTHOR",
+        )
+        db_session.add(second)
+        await db_session.flush()
+
+        dto1 = AddAuthorDTO(author_id=test_coauthor["id"])
+        await service.add_author(draft_article.id, dto1, user_id=test_user["id"])
+        dto2 = AddAuthorDTO(author_id=second_id)
+        await service.add_author(draft_article.id, dto2, user_id=test_user["id"])
+
+        await service.submit_for_approval(draft_article.id, user_id=test_user["id"])
+
+        version_id = (await service.get_article_by_id(draft_article.id)).current_version_id
+
+        await service.approve_version(
+            draft_article.id, version_id=version_id, user_id=test_coauthor["id"], approved=True,
+        )
+
+        updated = await service.get_article_by_id(draft_article.id)
+        assert updated.status == ArticleStatus.PENDING_APPROVAL
+
+    async def test_reject(
+        self, service, draft_article, test_user, test_coauthor, db_session
+    ):
+        dto = AddAuthorDTO(author_id=test_coauthor["id"])
+        await service.add_author(draft_article.id, dto, user_id=test_user["id"])
+
+        await service.submit_for_approval(draft_article.id, user_id=test_user["id"])
+
+        version_id = (await service.get_article_by_id(draft_article.id)).current_version_id
+
+        result = await service.approve_version(
+            draft_article.id, version_id=version_id, user_id=test_coauthor["id"], approved=False,
+        )
+        assert "draft" in result.message.lower()
+
+        updated = await service.get_article_by_id(draft_article.id)
+        assert updated.status == ArticleStatus.DRAFT
+
+    async def test_not_approver(
+        self, service, draft_article, test_user, test_coauthor, db_session
+    ):
+        dto = AddAuthorDTO(author_id=test_coauthor["id"])
+        await service.add_author(draft_article.id, dto, user_id=test_user["id"])
+
+        await service.submit_for_approval(draft_article.id, user_id=test_user["id"])
+
+        version_id = (await service.get_article_by_id(draft_article.id)).current_version_id
+
+        with pytest.raises(Forbidden, match="not an approver"):
+            await service.approve_version(
+                draft_article.id, version_id=version_id, user_id=uuid.uuid4(), approved=True,
+            )
+
+    async def test_already_responded(
+        self, service, draft_article, test_user, test_coauthor, test_coauthor2, test_reviewer, db_session
+    ):
+        dto1 = AddAuthorDTO(author_id=test_coauthor["id"])
+        dto2 = AddAuthorDTO(author_id=test_coauthor2["id"])
+        await service.add_author(draft_article.id, dto1, user_id=test_user["id"])
+        await service.add_author(draft_article.id, dto2, user_id=test_user["id"])
+
+        await service.submit_for_approval(draft_article.id, user_id=test_user["id"])
+
+        version_id = (await service.get_article_by_id(draft_article.id)).current_version_id
+
+        await service.approve_version(
+            draft_article.id, version_id=version_id, user_id=test_coauthor["id"], approved=True,
+        )
+
+        with pytest.raises(BadRequest, match="already responded"):
+            await service.approve_version(
+                draft_article.id, version_id=version_id, user_id=test_coauthor["id"], approved=True,
+            )
+
+    async def test_not_pending_approval(
+        self, service, draft_article, test_user, db_session
+    ):
+        version_id = (await service.get_article_by_id(draft_article.id)).current_version_id
+
+        with pytest.raises(BadRequest, match="not pending approval"):
+            await service.approve_version(
+                draft_article.id, version_id=version_id, user_id=test_user["id"], approved=True,
+            )
+
+    async def test_version_not_found(
+        self, service, draft_article, test_user,
+    ):
+        with pytest.raises(NotFound, match="Version"):
+            await service.approve_version(
+                draft_article.id, version_id=uuid.uuid4(), user_id=test_user["id"], approved=True,
+            )
+
+
+
+
+

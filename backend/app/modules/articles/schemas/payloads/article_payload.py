@@ -4,8 +4,8 @@ from pydantic import BaseModel
 from ...models import ArticleStatus
 
 class ArticlePayload(BaseModel):
-    """Базовый payload — для списков и создания."""
     id: uuid.UUID
+    current_version_id: uuid.UUID | None = None
     title: str
     abstract: str | None = None
     keywords: list[str] = []
@@ -14,6 +14,7 @@ class ArticlePayload(BaseModel):
     pdf_path: str
     journal_id: uuid.UUID | None = None
     status: ArticleStatus
+    version_number: int = 1
     is_visible: bool = True
     view_count: int = 0
     download_count: int = 0

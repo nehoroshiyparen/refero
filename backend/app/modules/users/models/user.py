@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from .author_profile import AuthorProfile
     from .reviewer_profile import ReviewerProfile
     from app.modules.reviews.models import Review
+    from app.modules.reviews.models.review_assignment import ReviewAssignment
     from app.modules.auth.models import RefreshToken
     from app.modules.articles.models.article_authors import ArticleAuthors
     from app.modules.articles.models.article_approvals import ArticleApprovals
@@ -67,10 +68,6 @@ class User(BaseModel):
         foreign_keys="ArticleApprovals.approver_id", back_populates="approver"
     )
     
-    reviews_as_reviewer: Mapped[list["Review"]] = relationship(
-        foreign_keys="Review.reviewer_id", back_populates="reviewer"
-    )
-    
-    articles_updated: Mapped[list["Article"]] = relationship(
-        foreign_keys="Article.updated_by_user_id", back_populates="updated_by_user"
+    review_assignments: Mapped[list["ReviewAssignment"]] = relationship(
+        foreign_keys="ReviewAssignment.reviewer_id", back_populates="reviewer"
     )

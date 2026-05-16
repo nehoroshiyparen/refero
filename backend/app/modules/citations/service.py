@@ -97,13 +97,14 @@ class CitationService(BaseService):
             article = await (
                 self._article_repo.query()
                 .where(Article.id == citation.article_id)
+                .with_current_version()
                 .one_or_none(self._session)
             )
 
             if not article:
                 raise NotFound("Cited article not found")
             
-            if article.status != ArticleStatus.PUBLISHED:
+            if not article.current_version or article.current_version.status != ArticleStatus.PUBLISHED.value:
                 raise BadRequest("You can only cite published articles")
             
             return ResolvedCitation(
@@ -116,10 +117,11 @@ class CitationService(BaseService):
             article = await (
                 self._article_repo.query()
                 .where(Article.doi == citation.doi)
+                .with_current_version()
                 .one_or_none(self._session)
             )
 
-            if article and article.status != ArticleStatus.PUBLISHED:
+            if article and (not article.current_version or article.current_version.status != ArticleStatus.PUBLISHED.value):
                 raise BadRequest("You can only cite published articles")
             
             return ResolvedCitation(

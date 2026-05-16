@@ -6,20 +6,24 @@ from app.core.exceptions import NotFound
 
 from app.modules.auth.schemas import AccessTokenPayload
 
-from .repository import UserRepository, User
-from .models import RoleName
+from .repositories import UserRepository, AuthorRepository, ReviewerRepository
+from .models import User, RoleName
 from .schemas import (
     UserPayload, 
     ProfileEditDTO,
     UserFiltersDTO,
     AuthorProfilePayload,
-    ReviewerProfilePayload
+    ReviewerProfilePayload,
+    CreateAuthorProfileDTO,
+    CreateReviewerProfileDTO,
 )
 
 class UserService(BaseService):
     def __init__(self, session):
         super().__init__(session)
         self._user_repo = UserRepository(self._session)
+        self._author_repo = AuthorRepository(self._session)
+        self._reviewer_repo = ReviewerRepository(self._session)
 
     # ------------------------------------------------------------------ #
     #  READ
@@ -71,14 +75,34 @@ class UserService(BaseService):
         if role == RoleName.AUTHOR and dto.author is not None:
             profile_data = dto.author.model_dump(exclude_unset=True)
             if profile_data:
-                await self._user_repo.upsert_author_profile(id, profile_data)
+                await self._author_repo.upsert(id, profile_data)
 
         elif role == RoleName.REVIEWER and dto.reviewer is not None:
             profile_data = dto.reviewer.model_dump(exclude_unset=True)
             if profile_data:
-                await self._user_repo.upsert_reviewer_profile(id, profile_data)
+                await self._reviewer_repo.upsert(id, profile_data)
 
         return await self.get_user(id)
+
+    async def create_author_profile(
+        self,
+        user_id: uuid.UUID,
+        dto: CreateAuthorProfileDTO,
+    ) -> AuthorProfilePayload:
+        data = dto.model_dump(exclude_unset=True)
+        await self._author_repo.upsert(user_id, data)
+        profile = await self._author_repo.get_by_user_id(user_id)
+        return AuthorProfilePayload.model_validate(profile)
+
+    async def create_reviewer_profile(
+        self,
+        user_id: uuid.UUID,
+        dto: CreateReviewerProfileDTO,
+    ) -> ReviewerProfilePayload:
+        data = dto.model_dump(exclude_unset=True)
+        await self._reviewer_repo.upsert(user_id, data)
+        profile = await self._reviewer_repo.get_by_user_id(user_id)
+        return ReviewerProfilePayload.model_validate(profile)
 
     # ------------------------------------------------------------------ #
     #  HELPERS

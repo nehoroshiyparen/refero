@@ -9,91 +9,113 @@ from app.modules.auth.schemas import AccessTokenPayload
 from app.modules.users.models import RoleName
 
 from .service import ReviewService
-from .schemas import CreateReviewDTO, UpdateReviewDTO, ReviewFiltersDTO, ReviewPayload
+from .schemas import (
+    CreateReviewDTO,
+    CreateCommentDTO,
+    ReviewPayload,
+    ReviewAssignmentFullPayload,
+    CommentPayload,
+)
 
 router = APIRouter()
 article_reviews_router = APIRouter(prefix="/articles")
 
 
 @router.get(
-    "/",
-    response_model=SuccessResponse[list[ReviewPayload]],
-    summary="Мои рецензии",
+    "/assignments",
+    response_model=SuccessResponse[list[ReviewAssignmentFullPayload]],
+    summary="Мои назначения на ревью",
 )
-async def my_reviews(
-    filters: ReviewFiltersDTO = Depends(),
+async def my_assignments(
     service: ReviewService = Depends(get_service(ReviewService)),
     user: AccessTokenPayload = Depends(require_role([RoleName.REVIEWER])),
 ):
-    items, meta = await service.get_my_reviews(user_id=user.id, filters=filters)
-    return SuccessResponse(
-        data=[item.model_dump() for item in items],
-        meta=meta
-    )
-
-
-@article_reviews_router.get(
-    "/{id}/reviews",
-    response_model=SuccessResponse[list[ReviewPayload]],
-    summary="Рецензии статьи",
-)
-async def get_article_reviews(
-    id: uuid.UUID,
-    service: ReviewService = Depends(get_service(ReviewService)),
-    user: AccessTokenPayload = Depends(require_role([RoleName.REVIEWER, RoleName.AUTHOR])),
-):
-    items = await service.get_article_reviews(article_id=id)
-    return SuccessResponse(data=[item.model_dump() for item in items])
+    result = await service.get_my_assignments(user_id=user.id)
+    return SuccessResponse(data=[item.model_dump() for item in result])
 
 
 @router.post(
-    "/",
+    "/assignments/{assignment_id}/review",
     response_model=SuccessResponse[ReviewPayload],
     status_code=status.HTTP_201_CREATED,
-    summary="Создать рецензию",
+    summary="Вынести решение по ревью",
 )
 async def create_review(
+    assignment_id: uuid.UUID,
     dto: CreateReviewDTO,
     service: ReviewService = Depends(get_service(ReviewService)),
     user: AccessTokenPayload = Depends(require_role([RoleName.REVIEWER])),
 ):
-    result = await service.create_review(dto, user_id=user.id)
+    dto_dict = dto.model_dump()
+    dto_dict["review_assignment_id"] = assignment_id
+    result = await service.create_review(CreateReviewDTO(**dto_dict), user_id=user.id)
     return SuccessResponse(
-        message="Review created",
+        message="Review submitted",
         data=result.model_dump(),
     )
 
 
-@router.put(
-    "/{id}",
-    response_model=SuccessResponse[ReviewPayload],
-    summary="Обновить рецензию",
+@router.get(
+    "/assignments/{assignment_id}/review",
+    response_model=SuccessResponse[ReviewPayload | None],
+    summary="Получить ревью по назначению",
 )
-async def update_review(
-    id: uuid.UUID,
-    dto: UpdateReviewDTO,
+async def get_review_by_assignment(
+    assignment_id: uuid.UUID,
     service: ReviewService = Depends(get_service(ReviewService)),
-    user: AccessTokenPayload = Depends(require_role([RoleName.REVIEWER])),
 ):
-    result = await service.update_review(id, dto, user_id=user.id)
-    return SuccessResponse(
-        message="Review updated",
-        data=result.model_dump(),
-    )
+    result = await service.get_review_by_assignment(assignment_id)
+    return SuccessResponse(data=result.model_dump() if result else None)
+
+
+# ── Comments ───────────────────────────────────────────────────
+
+
+@router.get(
+    "/versions/{version_id}/comments",
+    response_model=SuccessResponse[list[CommentPayload]],
+    summary="Комментарии к версии",
+)
+async def get_comments(
+    version_id: uuid.UUID,
+    service: ReviewService = Depends(get_service(ReviewService)),
+):
+    result = await service.get_comments(version_id)
+    return SuccessResponse(data=[item.model_dump() for item in result])
 
 
 @router.post(
-    "/{id}/revoke",
-    response_model=SuccessResponse[ReviewPayload],
-    summary="Отозвать рецензию",
+    "/versions/{version_id}/comments",
+    response_model=SuccessResponse[CommentPayload],
+    status_code=status.HTTP_201_CREATED,
+    summary="Добавить комментарий к версии",
 )
-async def revoke_review(
-    id: uuid.UUID,
+async def create_comment(
+    version_id: uuid.UUID,
+    dto: CreateCommentDTO,
     service: ReviewService = Depends(get_service(ReviewService)),
-    user: AccessTokenPayload = Depends(require_role([RoleName.REVIEWER])),
+    user: AccessTokenPayload = Depends(require_role([RoleName.REVIEWER, RoleName.AUTHOR])),
 ):
-    result = await service.revoke_review(id, user_id=user.id)
+    dto.article_version_id = version_id
+    result = await service.create_comment(dto, user_id=user.id)
     return SuccessResponse(
-        message="Review revoked",
+        message="Comment added",
         data=result.model_dump(),
     )
+
+
+# ── Assignment by version (for articles router) ────────────────
+
+
+@article_reviews_router.get(
+    "/{id}/versions/{version_id}/assignment",
+    response_model=SuccessResponse[ReviewAssignmentFullPayload | None],
+    summary="Назначение ревьюера для версии",
+)
+async def get_version_assignment(
+    id: uuid.UUID,
+    version_id: uuid.UUID,
+    service: ReviewService = Depends(get_service(ReviewService)),
+):
+    result = await service.get_assignment_by_version(version_id)
+    return SuccessResponse(data=result.model_dump() if result else None)

@@ -134,8 +134,8 @@ make start
 
 | Сервис         | URL                        | Описание                                |
 | -------------- | -------------------------- | --------------------------------------- |
-| **Backend**    | http://localhost:8000      | REST API на FastAPI                     |
-| **Swagger UI** | http://localhost:8000/docs | Интерактивная документация API          |
+| **Backend**    | http://localhost:7812      | REST API на FastAPI                     |
+| **Swagger UI** | http://localhost:7812/docs | Интерактивная документация API          |
 | **Frontend**   | http://localhost:5173      | Веб-интерфейс на React + Vite           |
 | **PostgreSQL** | localhost:5432             | База данных (доступна извне контейнера) |
 

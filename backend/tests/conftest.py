@@ -151,3 +151,51 @@ async def test_coauthor(db_session: AsyncSession) -> dict:
         "email": user.email,
         "full_name": user.full_name,
     }
+
+
+@pytest_asyncio.fixture(loop_scope="session")
+async def test_coauthor2(db_session: AsyncSession) -> dict:
+    from app.modules.users.models.user import User
+
+    user_id = uuid.uuid4()
+    user = User(
+        id=user_id,
+        username=f"test_coauthor2_{user_id.hex[:8]}",
+        email=f"coauthor2_{user_id.hex[:8]}@test.com",
+        hashed_password="fake_hash",
+        full_name="Test Co-Author 2",
+        role_name="AUTHOR",
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    return {
+        "id": user_id,
+        "username": user.username,
+        "email": user.email,
+        "full_name": user.full_name,
+    }
+
+
+@pytest_asyncio.fixture(loop_scope="session")
+async def test_reviewer(db_session: AsyncSession) -> dict:
+    from app.modules.users.models.user import User
+
+    user_id = uuid.uuid4()
+    user = User(
+        id=user_id,
+        username=f"test_reviewer_{user_id.hex[:8]}",
+        email=f"reviewer_{user_id.hex[:8]}@test.com",
+        hashed_password="fake_hash",
+        full_name="Test Reviewer",
+        role_name="REVIEWER",
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    return {
+        "id": user_id,
+        "username": user.username,
+        "email": user.email,
+        "full_name": user.full_name,
+    }

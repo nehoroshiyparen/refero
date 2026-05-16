@@ -1,2 +1,4 @@
 from .profile_edit_dto import ProfileEditDTO, AuthorProfileFields, ReviewerProfileFields
 from .user_filters_dto import UserFiltersDTO
+from .create_author_profile_dto import CreateAuthorProfileDTO
+from .create_reviewer_profile_dto import CreateReviewerProfileDTO

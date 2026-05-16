@@ -13,6 +13,10 @@ from .schemas import (
     UserFiltersDTO,
     ProfileEditDTO,
     UserPayload,
+    CreateAuthorProfileDTO,
+    AuthorProfilePayload,
+    CreateReviewerProfileDTO,
+    ReviewerProfilePayload,
 )
 
 router = APIRouter()
@@ -66,5 +70,36 @@ async def edit_profile(
     result = await service.edit_profile(id, dto, role=user.role)
     return SuccessResponse(
         message="Profile updated",
+        data=result.model_dump(),
+    )
+
+@router.post(
+    "/{id}/author-profile",
+    response_model=SuccessResponse[AuthorProfilePayload],
+)
+async def create_author_profile(
+    dto: CreateAuthorProfileDTO,
+    user: AccessTokenPayload = Depends(get_current_user),
+    service: UserService = Depends(get_service(UserService)),
+):
+    result = await service.create_author_profile(user.id, dto)
+    return SuccessResponse(
+        message="Author profile created",
+        data=result.model_dump(),
+    )
+
+
+@router.post(
+    "/{id}/reviewer-profile",
+    response_model=SuccessResponse[ReviewerProfilePayload],
+)
+async def create_reviewer_profile(
+    dto: CreateReviewerProfileDTO,
+    user: AccessTokenPayload = Depends(get_current_user),
+    service: UserService = Depends(get_service(UserService)),
+):
+    result = await service.create_reviewer_profile(user.id, dto)
+    return SuccessResponse(
+        message="Reviewer profile created",
         data=result.model_dump(),
     )

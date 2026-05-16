@@ -1,7 +1,7 @@
 import uuid
 from typing import TypeVar, Generic, cast
 from sqlalchemy.engine import CursorResult
-from sqlalchemy import select, insert, update, delete, or_, and_, func
+from sqlalchemy import select, delete, or_, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.infrastructure.database import BaseModel
 from app.core.exceptions import NotFound
@@ -21,18 +21,21 @@ class BaseRepository(Generic[ModelType, QueryBuilderType]):
         return self._query_builder(self._model)
 
     async def create(self, data: dict) -> ModelType:
-        stmt = insert(self._model).values(**data).returning(self._model)
-        result = await self._session.execute(stmt)
-        return result.scalar_one()
+        instance = self._model(**data)
+        self._session.add(instance)
+        await self._session.flush()
+        return instance
 
     async def update(self, id: uuid.UUID, data: dict) -> ModelType:
-        data["updated_at"] = func.now()
-        stmt = update(self._model).where(self._model.id == id).values(**data).returning(self._model)
-        result = await self._session.execute(stmt)
-        updated = result.scalar_one_or_none()
-        if updated is None:
+        if hasattr(self._model, 'updated_at'):
+            data["updated_at"] = func.now()
+        instance = await self._session.get(self._model, id)
+        if not instance:
             raise NotFound("Object not found")
-        return updated
+        for key, value in data.items():
+            setattr(instance, key, value)
+        await self._session.flush()
+        return instance
     
     async def delete(self, id: uuid.UUID) -> bool:
         stmt = delete(self._model).where(self._model.id == id)
