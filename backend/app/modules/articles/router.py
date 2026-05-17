@@ -81,6 +81,24 @@ async def create_article_version(
     )
 
 
+@router.put(
+    "/{id}/versions/{version_id}/set-current",
+    response_model=SuccessResponse[ArticleFullPayload],
+    summary="Сделать версию текущей",
+)
+async def set_current_version(
+    id: uuid.UUID,
+    version_id: uuid.UUID,
+    user: AccessTokenPayload = Depends(require_role([RoleName.AUTHOR])),
+    service: ArticleService = Depends(get_service(ArticleService)),
+):
+    result = await service.set_current_version(id, version_id, user_id=user.id)
+    return SuccessResponse(
+        message="Current version changed",
+        data=result.model_dump(),
+    )
+
+
 @router.delete(
     "/{id}/versions/{version_id}",
     response_model=SuccessResponse,

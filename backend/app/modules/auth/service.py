@@ -168,7 +168,7 @@ class AuthService(BaseService):
 
         access_token = create_access_token(
             payload={
-                "sub": str(token.user_id),
+                "id": str(token.user_id),
                 "role": role
             }
         )

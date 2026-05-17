@@ -6,6 +6,6 @@ class CreateAuthorProfileDTO(BaseModel):
     position: Optional[str] = Field(default=None, max_length=255)
 
     degree: Optional[str] = Field(default=None, max_length=100)
-    orcid: Optional[str] = Field(default=None, max_length=50)
+    orcid: str = Field(max_length=50)
 
     bio: Optional[str] = Field(default=None)

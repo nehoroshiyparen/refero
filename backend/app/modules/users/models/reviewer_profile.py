@@ -14,7 +14,7 @@ class ReviewerProfile(Base):
 
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
 
-    specialization: Mapped[str | None] = mapped_column(String(255))
+    specialization: Mapped[str] = mapped_column(String(255), nullable=False)
     degree: Mapped[str | None] = mapped_column(String(100))
 
     user: Mapped["User"] = relationship(back_populates="reviewer_profile")

@@ -40,6 +40,10 @@ logs-front:
 ps:
 	docker compose ps
 
+# 🌱 Сидирование
+seed:
+	docker compose exec backend python seed.py
+
 # 🐚 Войти в контейнеры
 bash-back:
 	docker compose exec backend bash

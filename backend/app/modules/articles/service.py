@@ -260,6 +260,31 @@ class ArticleService(BaseService):
 
         return self._to_version_payload(version)
 
+    async def set_current_version(
+        self,
+        article_id: uuid.UUID,
+        version_id: uuid.UUID,
+        user_id: uuid.UUID,
+    ) -> ArticleFullPayload:
+        article = await self._get_article_full_or_fail(article_id)
+
+        if article.creator_id != user_id:
+            raise Forbidden("Only the article creator can change the current version")
+
+        version = await (
+            self._version_repo.query()
+            .where(ArticleVersion.id == version_id, ArticleVersion.article_id == article_id)
+            .one_or_none(self._session)
+        )
+        if not version:
+            raise NotFound("Version not found")
+
+        article.current_version_id = version_id
+        await self._session.flush()
+
+        full = await self._get_article_full_or_fail(article_id)
+        return self._to_full_payload(full)
+
     async def delete_version(
         self,
         article_id: uuid.UUID,

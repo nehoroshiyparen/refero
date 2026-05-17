@@ -35,7 +35,7 @@ class User(BaseModel):
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
-    role_name: Mapped[RoleName] = mapped_column(Enum(RoleName), ForeignKey("roles.name"), nullable=False, default=RoleName.GUEST)
+    role_name: Mapped[RoleName] = mapped_column(Enum(RoleName), ForeignKey("roles.name"), nullable=False, default=RoleName.AUTHOR)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

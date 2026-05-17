@@ -36,6 +36,9 @@ makemigrations:
 history:
 	$(EXEC) alembic history --verbose
 
+seed:
+	$(EXEC) python seed.py
+
 test-up:
 	$(TEST_COMPOSE) up -d test-db --wait
 

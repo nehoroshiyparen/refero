@@ -18,7 +18,7 @@ class AuthorProfile(Base):
     position: Mapped[str | None] = mapped_column(String(255), nullable=True, )
 
     degree: Mapped[str | None] = mapped_column(String(100), nullable=True, )
-    orcid: Mapped[str | None] = mapped_column(String(50), nullable=True, )
+    orcid: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
 
     bio: Mapped[str | None] = mapped_column(Text, nullable=True, )
 

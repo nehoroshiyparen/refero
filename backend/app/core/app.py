@@ -25,7 +25,10 @@ class App:
 
         self.fastapi_app.add_middleware(
             CORSMiddleware,
-            allow_origins=[f"http://{settings.CLIENT_HOST}:{settings.CLIENT_PORT}"]
+            allow_origins=[f"http://{settings.CLIENT_HOST}:{settings.CLIENT_PORT}"],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
         )
 
     def start(self):
