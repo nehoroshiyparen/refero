@@ -9,7 +9,7 @@ from app.modules.auth.schemas import AccessTokenPayload
 
 def require_role(allowed_roles: Iterable[RoleName]):
     async def wrapper(user: AccessTokenPayload = Depends(get_current_user)) -> AccessTokenPayload:
-        if user.role not in allowed_roles:
+        if not any(r in allowed_roles for r in user.roles):
             raise Forbidden()
         return user
     return wrapper

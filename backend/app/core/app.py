@@ -1,4 +1,5 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from .routes import register_routes
@@ -19,17 +20,25 @@ class App:
         return _get_session
 
     def _setup(self):
-        """Setup all dependencies for app"""
-        register_routes(self.fastapi_app)
-        setup_handlers(self.fastapi_app)
-
         self.fastapi_app.add_middleware(
             CORSMiddleware,
-            allow_origins=[f"http://{settings.CLIENT_HOST}:{settings.CLIENT_PORT}"],
+            allow_origins=["*"],
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
         )
+
+        @self.fastapi_app.exception_handler(Exception)
+        async def global_exception_handler(request: Request, exc: Exception):
+            import logging
+            logging.exception(f"Unhandled exception on {request.method} {request.url}")
+            return JSONResponse(
+                status_code=500,
+                content={"error": "Internal server error", "code": "INTERNAL_ERROR"},
+            )
+
+        register_routes(self.fastapi_app)
+        setup_handlers(self.fastapi_app)
 
     def start(self):
         """Start the server"""

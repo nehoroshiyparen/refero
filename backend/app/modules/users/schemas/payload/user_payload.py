@@ -21,7 +21,7 @@ class UserPayload(BaseModel):
 
     is_active: bool
 
-    role_name: RoleName
+    roles: list[RoleName]
 
     created_at: datetime
     updated_at: datetime

@@ -6,6 +6,7 @@ import asyncio
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
+from app.modules.users.models.user_role import UserRole
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -116,9 +117,9 @@ async def test_user(db_session: AsyncSession) -> dict:
         email=f"test_{user_id.hex[:8]}@test.com",
         hashed_password="fake_hash",
         full_name="Test Author",
-        role_name="AUTHOR",
     )
     db_session.add(user)
+    db_session.add(UserRole(user_id=user_id, role_name="AUTHOR"))
     await db_session.flush()
 
     return {
@@ -140,9 +141,9 @@ async def test_coauthor(db_session: AsyncSession) -> dict:
         email=f"coauthor_{user_id.hex[:8]}@test.com",
         hashed_password="fake_hash",
         full_name="Test Co-Author",
-        role_name="AUTHOR",
     )
     db_session.add(user)
+    db_session.add(UserRole(user_id=user_id, role_name="AUTHOR"))
     await db_session.flush()
 
     return {
@@ -164,9 +165,9 @@ async def test_coauthor2(db_session: AsyncSession) -> dict:
         email=f"coauthor2_{user_id.hex[:8]}@test.com",
         hashed_password="fake_hash",
         full_name="Test Co-Author 2",
-        role_name="AUTHOR",
     )
     db_session.add(user)
+    db_session.add(UserRole(user_id=user_id, role_name="AUTHOR"))
     await db_session.flush()
 
     return {
@@ -188,9 +189,9 @@ async def test_reviewer(db_session: AsyncSession) -> dict:
         email=f"reviewer_{user_id.hex[:8]}@test.com",
         hashed_password="fake_hash",
         full_name="Test Reviewer",
-        role_name="REVIEWER",
     )
     db_session.add(user)
+    db_session.add(UserRole(user_id=user_id, role_name="REVIEWER"))
     await db_session.flush()
 
     return {

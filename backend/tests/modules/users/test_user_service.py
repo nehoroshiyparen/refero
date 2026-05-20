@@ -27,16 +27,17 @@ class TestGetUser:
         assert result.full_name == test_user["full_name"]
         assert result.username == test_user["username"]
         assert result.email == test_user["email"]
-        assert result.role_name == RoleName.AUTHOR
+        assert RoleName.AUTHOR in result.roles
 
     async def test_get_user_with_profiles(self, user_service, test_user, db_session):
         await db_session.execute(
             text("""
-                INSERT INTO author_profiles (user_id, organization, position)
-                VALUES (:uid, :org, :pos)
+                INSERT INTO author_profiles (user_id, organization, position, orcid)
+                VALUES (:uid, :org, :pos, :orcid)
                 ON CONFLICT (user_id) DO UPDATE SET organization = :org2, position = :pos2
             """),
             {"uid": str(test_user["id"]), "org": "MIT", "pos": "Researcher",
+             "orcid": "0000-0002-1825-0097",
              "org2": "MIT", "pos2": "Researcher"},
         )
         await db_session.flush()
@@ -67,7 +68,7 @@ class TestGetUsers:
         )
 
         assert len(items) >= 1
-        assert all(u.role_name == RoleName.AUTHOR for u in items)
+        assert all(RoleName.AUTHOR in u.roles for u in items)
 
     async def test_get_users_filter_by_role_no_match(self, user_service):
         items, meta = await user_service.get_users(
@@ -107,7 +108,7 @@ class TestEditProfile:
     async def test_edit_user_fields(self, user_service, test_user):
         dto = ProfileEditDTO(full_name="Updated Name")
         result = await user_service.edit_profile(
-            test_user["id"], dto, role=RoleName.AUTHOR
+            test_user["id"], dto, user_roles=[RoleName.AUTHOR]
         )
 
         assert result.full_name == "Updated Name"
@@ -118,10 +119,11 @@ class TestEditProfile:
                 organization="Stanford",
                 degree="PhD",
                 bio="A great researcher",
+                orcid="0000-0002-1825-0097",
             )
         )
         result = await user_service.edit_profile(
-            test_user["id"], dto, role=RoleName.AUTHOR
+            test_user["id"], dto, user_roles=[RoleName.AUTHOR]
         )
 
         assert result.author_profile is not None
@@ -131,10 +133,10 @@ class TestEditProfile:
 
     async def test_edit_author_profile_partial(self, user_service, test_user):
         dto = ProfileEditDTO(
-            author=AuthorProfileFields(position="Professor")
+            author=AuthorProfileFields(position="Professor", orcid="0000-0002-1825-0097")
         )
         result = await user_service.edit_profile(
-            test_user["id"], dto, role=RoleName.AUTHOR
+            test_user["id"], dto, user_roles=[RoleName.AUTHOR]
         )
 
         assert result.author_profile is not None
@@ -144,8 +146,8 @@ class TestEditProfile:
         other_id = uuid.uuid4()
         await db_session.execute(
             text("""
-                INSERT INTO users (id, username, email, hashed_password, full_name, role_name, is_active)
-                VALUES (:id, :uname, :email, :pw, :name, :role, :is_active)
+                INSERT INTO users (id, username, email, hashed_password, full_name, is_active)
+                VALUES (:id, :uname, :email, :pw, :name, :is_active)
             """),
             {
                 "id": str(other_id),
@@ -153,17 +155,20 @@ class TestEditProfile:
                 "email": f"new_{other_id.hex[:8]}@test.com",
                 "pw": "fake_hash",
                 "name": "New User",
-                "role": "AUTHOR",
                 "is_active": True
             },
         )
         await db_session.flush()
+        await db_session.execute(
+            text("INSERT INTO user_roles (user_id, role_name) VALUES (:uid, :role) ON CONFLICT DO NOTHING"),
+            {"uid": str(other_id), "role": "AUTHOR"},
+        )
 
         dto = ProfileEditDTO(
-            author=AuthorProfileFields(organization="Harvard")
+            author=AuthorProfileFields(organization="Harvard", orcid="0000-0002-1825-0097")
         )
         result = await user_service.edit_profile(
-            other_id, dto, role=RoleName.AUTHOR
+            other_id, dto, user_roles=[RoleName.AUTHOR]
         )
 
         assert result.author_profile is not None
@@ -173,8 +178,8 @@ class TestEditProfile:
         reviewer_id = uuid.uuid4()
         await db_session.execute(
             text("""
-                INSERT INTO users (id, username, email, hashed_password, full_name, role_name, is_active)
-                VALUES (:id, :uname, :email, :pw, :name, :role, :is_active)
+                INSERT INTO users (id, username, email, hashed_password, full_name, is_active)
+                VALUES (:id, :uname, :email, :pw, :name, :is_active)
             """),
             {
                 "id": str(reviewer_id),
@@ -182,11 +187,14 @@ class TestEditProfile:
                 "email": f"rev_{reviewer_id.hex[:8]}@test.com",
                 "pw": "fake_hash",
                 "name": "Test Reviewer",
-                "role": "REVIEWER",
                 "is_active": True
             },
         )
         await db_session.flush()
+        await db_session.execute(
+            text("INSERT INTO user_roles (user_id, role_name) VALUES (:uid, :role) ON CONFLICT DO NOTHING"),
+            {"uid": str(reviewer_id), "role": "REVIEWER"},
+        )
 
         dto = ProfileEditDTO(
             reviewer=ReviewerProfileFields(
@@ -195,7 +203,7 @@ class TestEditProfile:
             )
         )
         result = await user_service.edit_profile(
-            reviewer_id, dto, role=RoleName.REVIEWER
+            reviewer_id, dto, user_roles=[RoleName.REVIEWER]
         )
 
         assert result.reviewer_profile is not None
@@ -207,5 +215,5 @@ class TestEditProfile:
 
         with pytest.raises(NotFound):
             await user_service.edit_profile(
-                uuid.uuid4(), dto, role=RoleName.AUTHOR
+                uuid.uuid4(), dto, user_roles=[RoleName.AUTHOR]
             )

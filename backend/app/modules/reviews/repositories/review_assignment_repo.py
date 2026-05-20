@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from app.infrastructure.database import BaseRepository
 from app.infrastructure.database.base import BaseQueryBuilder
+from app.modules.articles.models.article_version import ArticleVersion
 from ..models import ReviewAssignment, Review
 
 
@@ -22,6 +23,12 @@ class ReviewAssignmentQueryBuilder(BaseQueryBuilder[ReviewAssignment]):
 
     def with_article_version(self) -> "ReviewAssignmentQueryBuilder":
         self._stmt = self._stmt.options(selectinload(ReviewAssignment.article_version))
+        return self
+
+    def with_article_version_and_article(self) -> "ReviewAssignmentQueryBuilder":
+        self._stmt = self._stmt.options(
+            selectinload(ReviewAssignment.article_version).selectinload(ArticleVersion.article)
+        )
         return self
 
 

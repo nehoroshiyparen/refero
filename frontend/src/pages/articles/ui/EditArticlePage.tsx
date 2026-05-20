@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Header } from '@/shared/ui/header'
 import { Button } from '@/shared/ui/button'
-import { getArticle, updateArticle } from '@/entities/article/api'
+import { getArticle, updateArticle, getArticleVersionById } from '@/entities/article/api'
 import { getJournals } from '@/entities/journal/api'
 import type { ArticleFullPayload } from '@/entities/article/types'
 import type { JournalPayload } from '@/entities/journal/types'
 
 export function EditArticlePage() {
   const { id } = useParams<{ id: string }>()
+  const [searchParams] = useSearchParams()
+  const versionId = searchParams.get('version')
   const navigate = useNavigate()
 
   const [article, setArticle] = useState<ArticleFullPayload | null>(null)
@@ -25,22 +27,25 @@ export function EditArticlePage() {
 
   useEffect(() => {
     if (!id) return
+    const load = versionId
+      ? getArticleVersionById(id, versionId).then((v) => ({ ...v, journal_id: null as string | null }) as any)
+      : getArticle(id)
     Promise.all([
-      getArticle(id),
+      load,
       getJournals(),
     ])
       .then(([art, jls]) => {
-        setArticle(art)
+        setArticle(art as ArticleFullPayload)
         setJournals(jls)
-        setTitle(art.title)
-        setAbstract(art.abstract ?? '')
-        setKeywords(art.keywords.join(', '))
-        setLanguage(art.language)
-        setJournalId(art.journal_id ?? '')
+        setTitle((art as any).title)
+        setAbstract((art as any).abstract ?? '')
+        setKeywords(((art as any).keywords ?? []).join(', '))
+        setLanguage((art as any).language)
+        setJournalId((art as any).journal_id ?? '')
       })
       .catch((e: any) => setError(e.message ?? 'Ошибка загрузки'))
       .finally(() => setLoading(false))
-  }, [id])
+  }, [id, versionId])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -58,7 +63,7 @@ export function EditArticlePage() {
         keywords: parsed,
         language,
         journal_id: journalId || null,
-      })
+      }, versionId ?? undefined)
       navigate(`/articles/${id}`)
     } catch (e: any) {
       setError(e.message ?? 'Ошибка')

@@ -11,6 +11,7 @@ from app.modules.users.models import RoleName
 
 from .service import ArticleService
 from .schemas import (
+    ApprovalBriefPayload,
     ArticleUpdateDTO,
     ArticleCreateDTO,
     ArticleFiltersDTO,
@@ -61,6 +62,20 @@ async def get_article_versions(
     return SuccessResponse(
         data=[item.model_dump() for item in result],
     )
+
+
+@router.get(
+    "/{id}/versions/{version_id}",
+    response_model=SuccessResponse[ArticleVersionPayload],
+    summary="Версия по ID",
+)
+async def get_article_version_by_id(
+    id: uuid.UUID,
+    version_id: uuid.UUID,
+    service: ArticleService = Depends(get_service(ArticleService)),
+):
+    result = await service.get_article_version_by_id(id, version_id)
+    return SuccessResponse(data=result.model_dump())
 
 
 @router.post(
@@ -115,6 +130,22 @@ async def delete_version(
 
 
 @router.get(
+    "/{id}/versions/{version_id}/approvals",
+    response_model=SuccessResponse[list[ApprovalBriefPayload]],
+    summary="Апрувы версии",
+)
+async def get_version_approvals(
+    id: uuid.UUID,
+    version_id: uuid.UUID,
+    service: ArticleService = Depends(get_service(ArticleService)),
+):
+    result = await service.get_version_approvals(id, version_id)
+    return SuccessResponse(
+        data=[item.model_dump() for item in result],
+    )
+
+
+@router.get(
     "/{id}",
     response_model=SuccessResponse[ArticleFullPayload],
     summary="Статья по ID",
@@ -126,6 +157,22 @@ async def get_article_by_id(
 ):
     result = await service.get_article_by_id(id, anonymous=anonymous)
     return SuccessResponse(data=result.model_dump())
+
+
+@router.post(
+    "/{id}/view",
+    response_model=SuccessResponse,
+    summary="Зарегистрировать просмотр статьи",
+)
+async def register_view(
+    id: uuid.UUID,
+    service: ArticleService = Depends(get_service(ArticleService)),
+):
+    count = await service.register_view(id)
+    return SuccessResponse(
+        message="View registered",
+        data={"view_count": count},
+    )
 
 
 @router.post(
@@ -154,10 +201,11 @@ async def create_article(
 async def update_article(
     id: uuid.UUID,
     dto: ArticleUpdateDTO,
+    version_id: uuid.UUID | None = Query(None, description="ID версии (если не указана — текущая)"),
     user: AccessTokenPayload = Depends(require_role([RoleName.AUTHOR])),
     service: ArticleService = Depends(get_service(ArticleService)),
 ):
-    result = await service.update_article(id, dto, user_id=user.id)
+    result = await service.update_article(id, dto, user_id=user.id, version_id=version_id)
     return SuccessResponse(
         message="Article updated",
         data=result.model_dump(),

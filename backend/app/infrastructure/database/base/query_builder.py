@@ -45,3 +45,7 @@ class BaseQueryBuilder(Generic[ModelType]):
     async def one_or_none(self, session: AsyncSession) -> ModelType | None:
         result = await session.execute(self._stmt)
         return result.scalar_one_or_none()
+
+    async def first(self, session: AsyncSession) -> ModelType | None:
+        result = await session.execute(self._stmt.limit(1))
+        return result.scalar_one_or_none()

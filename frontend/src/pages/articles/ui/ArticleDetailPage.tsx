@@ -10,8 +10,13 @@ import {
   setCurrentVersion,
   deleteArticleVersion,
   submitForApproval,
+  registerView,
+  addAuthor,
+  removeAuthor,
 } from '@/entities/article/api'
+import { getUsers } from '@/entities/user/api'
 import type { ArticleFullPayload, ArticleVersionPayload } from '@/entities/article/types'
+import type { UserBrief } from '@/entities/user/types'
 
 const statusLabels: Record<string, string> = {
   DRAFT: 'Черновик',
@@ -40,7 +45,13 @@ export function ArticleDetailPage() {
   const [versions, setVersions] = useState<ArticleVersionPayload[]>([])
   const [versionsLoading, setVersionsLoading] = useState(false)
 
+  const [showAddAuthor, setShowAddAuthor] = useState(false)
+  const [authorSearchQuery, setAuthorSearchQuery] = useState('')
+  const [authorSearchResults, setAuthorSearchResults] = useState<UserBrief[]>([])
+  const [authorSearchLoading, setAuthorSearchLoading] = useState(false)
+
   const isCreator = user && article && user.id === article.creator_id
+  const isCoAuthor = user && article && article.authors.some((a) => a.author_id === user.id)
 
   const loadArticle = () => {
     if (!id) return
@@ -56,13 +67,37 @@ export function ArticleDetailPage() {
   }, [id])
 
   useEffect(() => {
-    if (!id || !isCreator) return
+    if (!id || !article || !user) return
+    const isAuthor = user.id === article.creator_id || article.authors.some((a) => a.author_id === user.id)
+    if (isAuthor) return
+    registerView(id).catch(() => {})
+  }, [id, article, user])
+
+  const shouldLoadVersions = user && article && (isCreator || isCoAuthor)
+
+  useEffect(() => {
+    if (!id || !shouldLoadVersions) return
     setVersionsLoading(true)
     getArticleVersions(id)
       .then(setVersions)
       .catch(() => {})
       .finally(() => setVersionsLoading(false))
-  }, [id, isCreator])
+  }, [id, shouldLoadVersions])
+
+  useEffect(() => {
+    if (!authorSearchQuery.trim() || authorSearchQuery.length < 2) {
+      setAuthorSearchResults([])
+      return
+    }
+    setAuthorSearchLoading(true)
+    const timer = setTimeout(() => {
+      getUsers({ query: authorSearchQuery, limit: 10 })
+        .then(setAuthorSearchResults)
+        .catch(() => setAuthorSearchResults([]))
+        .finally(() => setAuthorSearchLoading(false))
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [authorSearchQuery])
 
   const handleCreateVersion = async () => {
     if (!id) return
@@ -104,8 +139,30 @@ export function ArticleDetailPage() {
     try {
       await submitForApproval(id)
       loadArticle()
-      const updatedVersions = await getArticleVersions(id)
-      setVersions(updatedVersions)
+    } catch (e: any) {
+      alert(e.message ?? 'Ошибка')
+    }
+  }
+
+  const handleAddAuthor = async (authorId: string) => {
+    if (!id) return
+    try {
+      await addAuthor(id, authorId)
+      setShowAddAuthor(false)
+      setAuthorSearchQuery('')
+      setAuthorSearchResults([])
+      loadArticle()
+    } catch (e: any) {
+      alert(e.message ?? 'Ошибка')
+    }
+  }
+
+  const handleRemoveAuthor = async (authorId: string) => {
+    if (!id) return
+    if (!confirm('Удалить соавтора?')) return
+    try {
+      await removeAuthor(id, authorId)
+      loadArticle()
     } catch (e: any) {
       alert(e.message ?? 'Ошибка')
     }
@@ -141,15 +198,15 @@ export function ArticleDetailPage() {
             &larr; Назад к статьям
           </Link>
           <div className="flex items-center gap-2">
+            {(isCreator || isCoAuthor) && article.status === 'DRAFT' && (
+              <Button size="sm" variant="outline" onClick={() => navigate(`/articles/${id}/edit`)}>
+                Редактировать
+              </Button>
+            )}
             {isCreator && article.status === 'DRAFT' && (
-              <>
-                <Button size="sm" variant="outline" onClick={() => navigate(`/articles/${id}/edit`)}>
-                  Редактировать
-                </Button>
-                <Button size="sm" variant="outline" onClick={handleSubmitForApproval}>
-                  Отправить на согласование
-                </Button>
-              </>
+              <Button size="sm" onClick={handleSubmitForApproval}>
+                На согласование
+              </Button>
             )}
             <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusColors[article.status] || ''}`}>
               {statusLabels[article.status] || article.status}
@@ -173,7 +230,82 @@ export function ArticleDetailPage() {
           )}
         </div>
 
-        <div className="border-t pt-6 space-y-6">
+        {/* ── Authors management (creator only) ── */}
+        {isCreator && (
+          <section className="border-t pt-6">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold">Соавторы</h2>
+              <Button size="sm" variant="outline" onClick={() => setShowAddAuthor(!showAddAuthor)}>
+                {showAddAuthor ? 'Отмена' : 'Добавить соавтора'}
+              </Button>
+            </div>
+
+            {showAddAuthor && (
+              <div className="mb-4 space-y-2">
+                <input
+                  type="text"
+                  placeholder="Поиск по имени или email..."
+                  value={authorSearchQuery}
+                  onChange={(e) => setAuthorSearchQuery(e.target.value)}
+                  className="w-full rounded-lg border px-3 py-2 text-sm"
+                  autoFocus
+                />
+                {authorSearchLoading && (
+                  <p className="text-xs text-muted-foreground">Поиск...</p>
+                )}
+                {authorSearchResults.length > 0 && (
+                  <div className="rounded-lg border divide-y max-h-48 overflow-y-auto">
+                    {authorSearchResults
+                      .filter((u) => !article.authors.some((a) => a.author_id === u.id))
+                      .map((u) => (
+                        <button
+                          key={u.id}
+                          type="button"
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex items-center justify-between"
+                          onClick={() => handleAddAuthor(u.id)}
+                        >
+                          <span>{u.full_name || u.username}</span>
+                          <span className="text-xs text-muted-foreground">{u.email}</span>
+                        </button>
+                      ))}
+                  </div>
+                )}
+                {authorSearchQuery.length >= 2 && authorSearchResults.length === 0 && !authorSearchLoading && (
+                  <p className="text-xs text-muted-foreground">Ничего не найдено</p>
+                )}
+              </div>
+            )}
+
+            <div className="space-y-1">
+              {article.authors.map((a) => {
+                const isRemovable = a.author_id !== user?.id
+                return (
+                  <div key={a.author_id} className="flex items-center justify-between rounded-lg border px-3 py-2">
+                    <div>
+                      <span className="text-sm font-medium">{a.name}</span>
+                      {a.author_id === article.creator_id && (
+                        <span className="ml-2 text-xs text-muted-foreground">(создатель)</span>
+                      )}
+                      <p className="text-xs text-muted-foreground">{a.email}</p>
+                    </div>
+                    {isRemovable && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-destructive"
+                        onClick={() => handleRemoveAuthor(a.author_id)}
+                      >
+                        Удалить
+                      </Button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )}
+
+        <div className="border-t pt-6 space-y-6 mt-6">
           {article.abstract && (
             <section>
               <h2 className="text-lg font-semibold mb-2">Аннотация</h2>
@@ -241,13 +373,15 @@ export function ArticleDetailPage() {
           )}
         </div>
 
-        {isCreator && (
+        {shouldLoadVersions && (
           <section className="border-t pt-6 mt-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">Версии</h2>
-              <Button size="sm" onClick={handleCreateVersion}>
-                Создать версию
-              </Button>
+              {isCreator && (
+                <Button size="sm" onClick={handleCreateVersion}>
+                  Создать версию
+                </Button>
+              )}
             </div>
 
             {versionsLoading ? (
@@ -282,8 +416,18 @@ export function ArticleDetailPage() {
                           {new Date(v.created_at).toLocaleDateString('ru-RU')}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2 ml-4 shrink-0">
-                        {!isCurrent && (
+                      <div className="flex items-center gap-2 ml-4 shrink-0 flex-wrap">
+                        {(isCreator || isCoAuthor) && v.status === 'DRAFT' && (
+                          <Button size="sm" variant="outline" onClick={() => navigate(`/articles/${id}/edit?version=${v.id}`)}>
+                            Редактировать
+                          </Button>
+                        )}
+                        {isCreator && v.status === 'DRAFT' && (
+                          <Button size="sm" variant="outline" onClick={handleSubmitForApproval}>
+                            На согласование
+                          </Button>
+                        )}
+                        {isCreator && !isCurrent && (
                           <>
                             <Button size="sm" variant="outline" onClick={() => handleSetCurrent(v.id)}>
                               Сделать текущей
@@ -297,6 +441,11 @@ export function ArticleDetailPage() {
                               Удалить
                             </Button>
                           </>
+                        )}
+                        {isCoAuthor && v.status === 'PENDING_APPROVAL' && (
+                          <Button size="sm" onClick={() => navigate(`/articles/${id}/review?version=${v.id}`)}>
+                            Рассмотреть
+                          </Button>
                         )}
                       </div>
                     </div>

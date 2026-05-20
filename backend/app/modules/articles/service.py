@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import func
+from sqlalchemy import func, select
 
 from app.core.base import BaseService
 from app.core.exceptions import NotFound, Forbidden, BadRequest
@@ -11,6 +11,8 @@ from app.modules.journals.repository import JournalRepository, Journal
 from app.modules.citations.service import CitationService
 from app.modules.citations.schemas import CitationBriefPayload
 from app.modules.citations.models import CitationMatchStatus
+from app.modules.users.models.user import User
+from app.modules.users.models.user_role import UserRole
 
 from .repositories import (
     ArticleRepository,
@@ -38,6 +40,7 @@ from .schemas import (
     ArticleVersionPayload,
     AuthorBriefPayload,
     JournalBriefPayload,
+    ApprovalBriefPayload,
     ApprovalSubmissionPayload,
     AuthorActionPayload,
 )
@@ -83,14 +86,18 @@ class ArticleService(BaseService):
         anonymous: bool = False,
     ) -> ArticleFullPayload:
         article = await self._get_article_full_or_fail(id)
-        article.view_count += 1
-        await self._article_repo.update(id, {"view_count": article.view_count})
         payload = self._to_full_payload(article)
         if anonymous:
             for author in payload.authors:
                 author.name = ""
                 author.email = ""
         return payload
+
+    async def register_view(self, id: uuid.UUID) -> int:
+        article = await self._get_article_full_or_fail(id)
+        article.view_count += 1
+        await self._article_repo.update(id, {"view_count": article.view_count})
+        return article.view_count
 
     async def get_article_versions(
         self,
@@ -109,6 +116,61 @@ class ArticleService(BaseService):
 
         versions = await qb.all(self._session)
         return [self._to_version_payload(v) for v in versions]
+
+    async def get_version_approvals(
+        self,
+        article_id: uuid.UUID,
+        version_id: uuid.UUID,
+    ) -> list[ApprovalBriefPayload]:
+        article = await self._get_article_or_fail(article_id)
+        version = await (
+            self._version_repo.query()
+            .where(
+                ArticleVersion.id == version_id,
+                ArticleVersion.article_id == article_id,
+            )
+            .one_or_none(self._session)
+        )
+        if not version:
+            raise NotFound("Version not found")
+
+        approvals = await (
+            self._article_approvals_repo.query()
+            .where(ArticleApprovals.article_version_id == version_id)
+            .with_approver()
+            .all(self._session)
+        )
+
+        result = []
+        for a in approvals:
+            approver_name = a.approver.full_name if a.approver else ""
+            result.append(ApprovalBriefPayload(
+                id=a.id,
+                approver_id=a.approver_id,
+                approver_name=approver_name,
+                status=ApprovalStatus(a.status),
+                comment=a.comment,
+                approved_at=a.approved_at,
+            ))
+        return result
+
+    async def get_article_version_by_id(
+        self,
+        article_id: uuid.UUID,
+        version_id: uuid.UUID,
+    ) -> ArticleVersionPayload:
+        article = await self._get_article_or_fail(article_id)
+        version = await (
+            self._version_repo.query()
+            .where(
+                ArticleVersion.id == version_id,
+                ArticleVersion.article_id == article_id,
+            )
+            .one_or_none(self._session)
+        )
+        if not version:
+            raise NotFound("Version not found")
+        return self._to_version_payload(version)
 
     # ------------------------------------------------------------------ #
     #  CREATE / UPDATE / DELETE
@@ -178,14 +240,24 @@ class ArticleService(BaseService):
         id: uuid.UUID,
         dto: ArticleUpdateDTO,
         user_id: uuid.UUID,
+        version_id: uuid.UUID | None = None,
     ) -> ArticleFullPayload:
         article = await self._get_article_or_fail(id)
 
-        if not article.current_version:
+        target_version_id = version_id or (article.current_version.id if article.current_version else None)
+        if not target_version_id:
             raise NotFound("Article has no current version")
 
-        if article.current_version.status != ArticleStatus.DRAFT:
-            raise BadRequest("Can only update articles in draft status")
+        target_version = await (
+            self._version_repo.query()
+            .where(ArticleVersion.id == target_version_id, ArticleVersion.article_id == id)
+            .one_or_none(self._session)
+        )
+        if not target_version:
+            raise NotFound("Version not found")
+
+        if target_version.status != ArticleStatus.DRAFT:
+            raise BadRequest("Can only update draft versions")
 
         await self._check_is_author(id, user_id)
 
@@ -195,7 +267,7 @@ class ArticleService(BaseService):
         if version_data:
             version_data["updated_by_user_id"] = user_id
             await self._version_repo.update(
-                article.current_version.id,
+                target_version_id,
                 version_data,
             )
 
@@ -238,7 +310,7 @@ class ArticleService(BaseService):
             self._version_repo.query()
             .where(ArticleVersion.article_id == id)
             .order_by(ArticleVersion.version_number.desc())
-            .one_or_none(self._session)
+            .first(self._session)
         )
         next_version_number = (max_version.version_number + 1) if max_version else 1
 
@@ -255,7 +327,6 @@ class ArticleService(BaseService):
             "updated_by_user_id": user_id,
         })
 
-        article.current_version_id = version.id
         await self._session.flush()
 
         return self._to_version_payload(version)
@@ -369,7 +440,7 @@ class ArticleService(BaseService):
             self._version_repo.query()
             .where(ArticleVersion.article_id == id)
             .order_by(ArticleVersion.version_number.desc())
-            .one_or_none(self._session)
+            .first(self._session)
         )
         if not version:
             raise NotFound("No versions found for this article")
@@ -499,9 +570,6 @@ class ArticleService(BaseService):
     ) -> AuthorActionPayload:
         article = await self._get_article_or_fail(article_id)
 
-        if article.current_version and article.current_version.status != ArticleStatus.DRAFT:
-            raise BadRequest("Can only add authors to draft articles")
-
         if article.creator_id != user_id:
             raise Forbidden("Only the article creator can add co-authors")
 
@@ -525,9 +593,6 @@ class ArticleService(BaseService):
         user_id: uuid.UUID,
     ) -> AuthorActionPayload:
         article = await self._get_article_or_fail(article_id)
-
-        if article.current_version and article.current_version.status != ArticleStatus.DRAFT:
-            raise BadRequest("Can only remove authors from draft articles")
 
         if article.creator_id != user_id:
             raise Forbidden("Only the article creator can remove co-authors")
@@ -700,13 +765,11 @@ class ArticleService(BaseService):
         return article
 
     async def _assign_random_reviewer(self, version_id: uuid.UUID) -> None:
-        from app.modules.users.models.user import User, RoleName
-        from sqlalchemy import select
-
         random_reviewer = (
             await self._session.execute(
                 select(User)
-                .where(User.role_name == RoleName.REVIEWER)
+                .join(UserRole, User.id == UserRole.user_id)
+                .where(UserRole.role_name == "REVIEWER")
                 .order_by(func.random())
                 .limit(1)
             )

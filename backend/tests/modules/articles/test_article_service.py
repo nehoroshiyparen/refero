@@ -130,14 +130,17 @@ class TestGetArticleById:
 
         assert result.id == draft_article.id
         assert result.title == "Test Article"
-        assert result.view_count == 1  # инкрементится при получении
+        assert result.view_count == 0  # не инкрементится при получении
 
-    async def test_get_article_by_id_increments_view_count(self, service, draft_article):
-        await service.get_article_by_id(draft_article.id)
-        await service.get_article_by_id(draft_article.id)
+    async def test_register_view_increments_view_count(self, service, draft_article):
+        count = await service.register_view(draft_article.id)
+        assert count == 1
+
+        count = await service.register_view(draft_article.id)
+        assert count == 2
 
         result = await service.get_article_by_id(draft_article.id)
-        assert result.view_count == 3
+        assert result.view_count == 2
 
     async def test_get_article_by_id_not_found(self, service):
         with pytest.raises(NotFound):
@@ -428,10 +431,10 @@ class TestAuthorManagement:
 
         dto = AddAuthorDTO(author_id=test_coauthor["id"])
 
-        with pytest.raises(BadRequest, match="draft"):
-            await service.add_author(
-                draft_article.id, dto, user_id=test_user["id"]
-            )
+        result = await service.add_author(
+            draft_article.id, dto, user_id=test_user["id"]
+        )
+        assert result.message == "Author added successfully"
 
     async def test_delete_author_success(
         self, service, draft_article, test_user, test_coauthor
@@ -526,15 +529,16 @@ class TestApproveVersion:
         # Создаём второго соавтора, чтобы после одобрения первого оставался pending
         second_id = uuid.uuid4()
         from app.modules.users.models.user import User
+        from app.modules.users.models.user_role import UserRole
         second = User(
             id=second_id,
             username=f"second_coauthor_{second_id.hex[:8]}",
             email=f"second_{second_id.hex[:8]}@test.com",
             hashed_password="fake_hash",
             full_name="Second Co-Author",
-            role_name="AUTHOR",
         )
         db_session.add(second)
+        db_session.add(UserRole(user_id=second_id, role_name="AUTHOR"))
         await db_session.flush()
 
         dto1 = AddAuthorDTO(author_id=test_coauthor["id"])

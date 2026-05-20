@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.base import BaseService
 
 from app.modules.users.repositories import UserRepository, User
+from app.modules.users.models import UserRole
 from .repository import TokenRepository, RefreshToken
 
 from app.core.exceptions import (
@@ -66,10 +67,13 @@ class AuthService(BaseService):
             }
         )
 
+        self._session.add(UserRole(user_id=user.id, role_name="GUEST"))
+        await self._session.flush()
+
         access_token = create_access_token(
             payload={
                 "id": str(user.id),
-                "role": user.role_name.value
+                "roles": ["GUEST"],
             }
         )
 
@@ -93,7 +97,7 @@ class AuthService(BaseService):
         data: LoginDTO
     ) -> AuthorizationPaylaod:
 
-        builder = self._user_repo.query()
+        builder = self._user_repo.query().extended_profile()
 
         if data.username:
             builder.where(User.username == data.username)
@@ -115,7 +119,7 @@ class AuthService(BaseService):
         access_token = create_access_token(
             payload={
                 "id": str(user.id),
-                "role": user.role_name.value
+                "roles": [ur.role_name for ur in (user.user_roles or [])],
             }
         )
 
@@ -164,12 +168,12 @@ class AuthService(BaseService):
         if not token:
             raise Unauthorized
 
-        role = token.user.role_name.value
+        roles = [ur.role_name for ur in (token.user.user_roles or [])]
 
         access_token = create_access_token(
             payload={
                 "id": str(token.user_id),
-                "role": role
+                "roles": roles,
             }
         )
 

@@ -67,7 +67,7 @@ async def edit_profile(
     user: AccessTokenPayload = Depends(get_current_user),
     service: UserService = Depends(get_service(UserService)),
 ):
-    result = await service.edit_profile(id, dto, role=user.role)
+    result = await service.edit_profile(id, dto, user_roles=user.roles)
     return SuccessResponse(
         message="Profile updated",
         data=result.model_dump(),

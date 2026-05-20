@@ -7,7 +7,7 @@ export type UserProfile = {
   full_name: string
   avatar_url?: string
   is_active: boolean
-  role_name: RoleName
+  roles: RoleName[]
   created_at: string
   updated_at: string
   author_profile?: {

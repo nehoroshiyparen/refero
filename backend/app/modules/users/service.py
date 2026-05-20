@@ -2,12 +2,12 @@ import uuid
 
 from app.core.base import BaseService
 from app.core.responses import PaginationMeta
-from app.core.exceptions import NotFound
+from app.core.exceptions import NotFound, Forbidden
 
 from app.modules.auth.schemas import AccessTokenPayload
 
 from .repositories import UserRepository, AuthorRepository, ReviewerRepository
-from .models import User, RoleName
+from .models import User, UserRole, RoleName
 from .schemas import (
     UserPayload, 
     ProfileEditDTO,
@@ -17,6 +17,7 @@ from .schemas import (
     CreateAuthorProfileDTO,
     CreateReviewerProfileDTO,
 )
+
 
 class UserService(BaseService):
     def __init__(self, session):
@@ -66,23 +67,33 @@ class UserService(BaseService):
         self,
         id: uuid.UUID,
         dto: ProfileEditDTO,
-        role: RoleName,
+        user_roles: list[RoleName],
     ) -> UserPayload:
         user_data = dto.model_dump(exclude_unset=True, include={"full_name", "avatar_url"})
         if user_data:
             await self._user_repo.update(id, user_data)
 
-        if role == RoleName.AUTHOR and dto.author is not None:
+        if dto.author is not None:
+            if RoleName.AUTHOR not in user_roles:
+                raise Forbidden("You need the AUTHOR role to edit author profile")
             profile_data = dto.author.model_dump(exclude_unset=True)
             if profile_data:
                 await self._author_repo.upsert(id, profile_data)
 
-        elif role == RoleName.REVIEWER and dto.reviewer is not None:
+        if dto.reviewer is not None:
+            if RoleName.REVIEWER not in user_roles:
+                raise Forbidden("You need the REVIEWER role to edit reviewer profile")
             profile_data = dto.reviewer.model_dump(exclude_unset=True)
             if profile_data:
                 await self._reviewer_repo.upsert(id, profile_data)
 
         return await self.get_user(id)
+
+    async def _ensure_role(self, user_id: uuid.UUID, role: str) -> None:
+        existing = await self._session.get(UserRole, (user_id, role))
+        if not existing:
+            self._session.add(UserRole(user_id=user_id, role_name=role))
+            await self._session.flush()
 
     async def create_author_profile(
         self,
@@ -91,6 +102,7 @@ class UserService(BaseService):
     ) -> AuthorProfilePayload:
         data = dto.model_dump(exclude_unset=True)
         await self._author_repo.upsert(user_id, data)
+        await self._ensure_role(user_id, "AUTHOR")
         profile = await self._author_repo.get_by_user_id(user_id)
         return AuthorProfilePayload.model_validate(profile)
 
@@ -101,6 +113,7 @@ class UserService(BaseService):
     ) -> ReviewerProfilePayload:
         data = dto.model_dump(exclude_unset=True)
         await self._reviewer_repo.upsert(user_id, data)
+        await self._ensure_role(user_id, "REVIEWER")
         profile = await self._reviewer_repo.get_by_user_id(user_id)
         return ReviewerProfilePayload.model_validate(profile)
 
@@ -117,7 +130,7 @@ class UserService(BaseService):
             full_name=user.full_name,
             avatar_url=user.avatar_url,
             is_active=user.is_active,
-            role_name=user.role_name,
+            roles=[ur.role_name for ur in (user.user_roles or [])],
 
             author_profile=(
                 AuthorProfilePayload.model_validate(user.author_profile)

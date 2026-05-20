@@ -44,9 +44,25 @@ class ReviewService(BaseService):
             self._assignment_repo.query()
             .filter_by_reviewer(user_id)
             .with_review()
+            .with_article_version_and_article()
             .all(self._session)
         )
         return [self._to_assignment_full_payload(a) for a in items]
+
+    async def get_assignment_by_id(
+        self,
+        assignment_id: uuid.UUID,
+    ) -> ReviewAssignmentFullPayload | None:
+        item = await (
+            self._assignment_repo.query()
+            .where(ReviewAssignment.id == assignment_id)
+            .with_review()
+            .with_article_version_and_article()
+            .one_or_none(self._session)
+        )
+        if not item:
+            return None
+        return self._to_assignment_full_payload(item)
 
     async def get_assignment_by_version(
         self,
@@ -56,6 +72,7 @@ class ReviewService(BaseService):
             self._assignment_repo.query()
             .filter_by_version(article_version_id)
             .with_review()
+            .with_article_version_and_article()
             .one_or_none(self._session)
         )
         if not item:
@@ -142,7 +159,14 @@ class ReviewService(BaseService):
             "user_id": user_id,
             "content": dto.content,
         })
-        return self._to_comment_payload(comment)
+
+        loaded = await (
+            self._comment_repo.query()
+            .where(VersionComment.id == comment.id)
+            .with_user()
+            .one_or_none(self._session)
+        )
+        return self._to_comment_payload(loaded or comment)
 
     async def get_comments(
         self,
@@ -151,6 +175,7 @@ class ReviewService(BaseService):
         items = await (
             self._comment_repo.query()
             .where(VersionComment.article_version_id == article_version_id)
+            .with_user()
             .order_by(VersionComment.created_at.asc())
             .all(self._session)
         )
@@ -184,6 +209,7 @@ class ReviewService(BaseService):
 
     @staticmethod
     def _to_assignment_full_payload(a: ReviewAssignment) -> ReviewAssignmentFullPayload:
+        av = a.article_version
         return ReviewAssignmentFullPayload(
             id=a.id,
             article_version_id=a.article_version_id,
@@ -191,6 +217,10 @@ class ReviewService(BaseService):
             created_at=a.created_at,
             review_status=ReviewStatusEnum(a.review.status) if a.review else None,
             review_completed_at=a.review.completed_at if a.review else None,
+            article_id=av.article_id if av else None,
+            article_title=av.article.title if av and av.article else None,
+            version_number=av.version_number if av else None,
+            version_title=av.title if av else None,
         )
 
     @staticmethod
@@ -199,6 +229,7 @@ class ReviewService(BaseService):
             id=c.id,
             article_version_id=c.article_version_id,
             user_id=c.user_id,
+            user_name=c.user.full_name if hasattr(c, 'user') and c.user else "",
             content=c.content,
             created_at=c.created_at,
         )

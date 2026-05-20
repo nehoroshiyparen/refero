@@ -1,3 +1,4 @@
+from .approval_brief_payload import ApprovalBriefPayload
 from .approval_submission_payload import ApprovalSubmissionPayload
 from .article_full_payload import ArticleFullPayload
 from .article_payload import ArticlePayload

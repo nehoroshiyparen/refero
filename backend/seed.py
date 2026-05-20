@@ -19,6 +19,9 @@ from app.modules.auth.utils.hash_password import hash_password
 import app.infrastructure.database.models.import_models
 
 from app.modules.users.models.user import User
+from app.modules.users.models.user_role import UserRole
+from app.modules.users.models.author_profile import AuthorProfile
+from app.modules.users.models.reviewer_profile import ReviewerProfile
 from app.modules.journals.models.journal import Journal
 from app.modules.articles.models.article import Article
 from app.modules.articles.models.article_version import ArticleVersion
@@ -47,25 +50,48 @@ async def seed():
         admin = User(
             username="admin", email="admin@refero.org",
             hashed_password=hash_password("admin123"),
-            full_name="Администратор", role_name="ADMIN",
+            full_name="Администратор",
         )
         author1 = User(
             username="ivanov", email="ivanov@refero.org",
             hashed_password=hash_password("author123"),
-            full_name="Иван Иванов", role_name="AUTHOR",
+            full_name="Иван Иванов",
         )
         author2 = User(
             username="petrova", email="petrova@refero.org",
             hashed_password=hash_password("author123"),
-            full_name="Мария Петрова", role_name="AUTHOR",
+            full_name="Мария Петрова",
         )
         reviewer1 = User(
             username="sidorov", email="sidorov@refero.org",
             hashed_password=hash_password("reviewer123"),
-            full_name="Пётр Сидоров", role_name="REVIEWER",
+            full_name="Пётр Сидоров",
         )
         session.add_all([admin, author1, author2, reviewer1])
         await session.flush()
+
+        session.add_all([
+            UserRole(user_id=admin.id, role_name="ADMIN"),
+            UserRole(user_id=author1.id, role_name="AUTHOR"),
+            UserRole(user_id=author2.id, role_name="AUTHOR"),
+            UserRole(user_id=reviewer1.id, role_name="REVIEWER"),
+        ])
+        await session.flush()
+
+        # Проверяем, есть ли уже профили (seed идемпотентен)
+        existing_author = await session.get(AuthorProfile, author1.id)
+        if not existing_author:
+            session.add_all([
+                AuthorProfile(user_id=author1.id, orcid="0000-0001-2345-6789",
+                              organization="МГУ им. Ломоносова", position="Старший научный сотрудник",
+                              degree="PhD", bio="Исследователь в области компьютерных наук"),
+                AuthorProfile(user_id=author2.id, orcid="0000-0002-9876-5432",
+                              organization="СПбГУ", position="Доцент",
+                              degree="PhD", bio="Биомедицинский исследователь"),
+                ReviewerProfile(user_id=reviewer1.id, specialization="Computer Science",
+                                degree="PhD"),
+            ])
+            await session.flush()
 
         # ── журналы ──────────────────────────────────────────────
         j_cs = Journal(name="Journal of Computer Science", issn="1234-5678",

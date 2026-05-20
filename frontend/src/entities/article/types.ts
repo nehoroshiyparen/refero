@@ -7,6 +7,17 @@ export type AuthorBrief = {
   joined_at?: string | null
 }
 
+export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+
+export type ApprovalBrief = {
+  id: string
+  approver_id: string
+  approver_name: string
+  status: ApprovalStatus
+  comment?: string | null
+  approved_at?: string | null
+}
+
 export type JournalBrief = {
   id: string
   name: string

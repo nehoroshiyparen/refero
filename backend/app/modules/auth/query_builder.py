@@ -1,6 +1,7 @@
 from typing import Self
 from sqlalchemy.orm import selectinload
 from app.infrastructure.database.base import BaseQueryBuilder
+from app.modules.users.models import User
 from .models import RefreshToken
 
 class TokenQueryBuilder(BaseQueryBuilder[RefreshToken]):
@@ -9,6 +10,6 @@ class TokenQueryBuilder(BaseQueryBuilder[RefreshToken]):
 
     def with_user(self) -> Self:
         self._stmt = self._stmt.options(
-            selectinload(self._model.user)
+            selectinload(RefreshToken.user).selectinload(User.user_roles)
         )
         return self

@@ -34,6 +34,20 @@ async def my_assignments(
     return SuccessResponse(data=[item.model_dump() for item in result])
 
 
+@router.get(
+    "/assignments/{assignment_id}",
+    response_model=SuccessResponse[ReviewAssignmentFullPayload | None],
+    summary="Назначение по ID",
+)
+async def get_assignment(
+    assignment_id: uuid.UUID,
+    service: ReviewService = Depends(get_service(ReviewService)),
+    user: AccessTokenPayload = Depends(require_role([RoleName.REVIEWER])),
+):
+    result = await service.get_assignment_by_id(assignment_id)
+    return SuccessResponse(data=result.model_dump() if result else None)
+
+
 @router.post(
     "/assignments/{assignment_id}/review",
     response_model=SuccessResponse[ReviewPayload],
