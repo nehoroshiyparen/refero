@@ -195,8 +195,16 @@ async def seed():
             article_version_id=ver5.id, reviewer_id=reviewer1.id,
         ))
 
-        session.add(ReviewAssignment(
+        assignment3 = ReviewAssignment(
             article_version_id=ver2.id, reviewer_id=reviewer1.id,
+        )
+        session.add(assignment3)
+        await session.flush()
+
+        session.add(Review(
+            review_assignment_id=assignment3.id,
+            status="APPROVED",
+            completed_at=now_utc() - timedelta(days=7),
         ))
 
         await session.commit()

@@ -5,7 +5,7 @@ import { LoginPage } from '../../pages/login'
 import { RegisterPage } from '../../pages/register'
 import { ArticlesPage, ArticleDetailPage, CreateArticlePage, EditArticlePage, MyArticlesPage, ReviewPage } from '../../pages/articles'
 import { AssignmentsPage, AssignmentReviewPage } from '../../pages/reviews'
-import { ProfilePage } from '../../pages/profile'
+import { ProfilePage, PublicProfilePage } from '../../pages/profile'
 import type { RoleName } from '@/entities/auth/types'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -30,14 +30,6 @@ function CheckRole({ children, roles }: { children: React.ReactNode; roles: Role
   return <>{children}</>
 }
 
-function Placeholder({ title }: { title: string }) {
-  return (
-    <div className="min-h-svh flex items-center justify-center text-muted-foreground text-lg">
-      {title} — coming soon
-    </div>
-  )
-}
-
 export function AppRouter() {
   return (
     <BrowserRouter>
@@ -52,6 +44,7 @@ export function AppRouter() {
         <Route path="/articles/:id/edit" element={<RequireAuth><CheckRole roles={['AUTHOR', 'ADMIN']}><EditArticlePage /></CheckRole></RequireAuth>} />
         <Route path="/my-articles" element={<RequireAuth><MyArticlesPage /></RequireAuth>} />
         <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
+        <Route path="/users/:id" element={<PublicProfilePage />} />
         <Route path="/reviews/assignments" element={<RequireAuth><CheckRole roles={['REVIEWER']}><AssignmentsPage /></CheckRole></RequireAuth>} />
         <Route path="/reviews/assignments/:assignmentId" element={<RequireAuth><CheckRole roles={['REVIEWER']}><AssignmentReviewPage /></CheckRole></RequireAuth>} />
       </Routes>

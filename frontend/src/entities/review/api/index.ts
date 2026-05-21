@@ -9,6 +9,10 @@ export function getReviewAssignment(assignmentId: string) {
   return request<ReviewAssignmentFullPayload | null>(`/api/reviews/assignments/${assignmentId}`)
 }
 
+export function getVersionAssignment(articleId: string, versionId: string) {
+  return request<ReviewAssignmentFullPayload | null>(`/api/articles/${articleId}/versions/${versionId}/assignment`)
+}
+
 export function getReviewByAssignment(assignmentId: string) {
   return request<ReviewPayload | null>(`/api/reviews/assignments/${assignmentId}/review`)
 }
@@ -27,6 +31,6 @@ export function getComments(versionId: string) {
 export function addComment(versionId: string, content: string) {
   return request<CommentPayload>(`/api/reviews/versions/${versionId}/comments`, {
     method: 'POST',
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ article_version_id: versionId, content }),
   })
 }

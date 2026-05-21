@@ -104,5 +104,6 @@ export async function request<T>(
   }
 
   const body = await res.json()
-  return body.data ?? body
+  if ('data' in body) return body.data as T
+  return body as T
 }

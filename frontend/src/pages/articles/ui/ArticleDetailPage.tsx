@@ -13,8 +13,11 @@ import {
   registerView,
   addAuthor,
   removeAuthor,
+  hideArticle,
+  showArticle,
 } from '@/entities/article/api'
 import { getUsers } from '@/entities/user/api'
+import { getVersionAssignment, getReviewByAssignment, getComments } from '@/entities/review/api'
 import type { ArticleFullPayload, ArticleVersionPayload } from '@/entities/article/types'
 import type { UserBrief } from '@/entities/user/types'
 
@@ -44,11 +47,17 @@ export function ArticleDetailPage() {
 
   const [versions, setVersions] = useState<ArticleVersionPayload[]>([])
   const [versionsLoading, setVersionsLoading] = useState(false)
+  const [versionReviewInfo, setVersionReviewInfo] = useState<Record<string, {needsChanges: boolean; commentCount: number}>>({})
 
   const [showAddAuthor, setShowAddAuthor] = useState(false)
   const [authorSearchQuery, setAuthorSearchQuery] = useState('')
   const [authorSearchResults, setAuthorSearchResults] = useState<UserBrief[]>([])
   const [authorSearchLoading, setAuthorSearchLoading] = useState(false)
+
+  const [reviewAssignment, setReviewAssignment] = useState<any | null>(null)
+  const [reviewDecision, setReviewDecision] = useState<any | null>(null)
+  const [reviewComments, setReviewComments] = useState<any[]>([])
+  const [reviewLoading, setReviewLoading] = useState(false)
 
   const isCreator = user && article && user.id === article.creator_id
   const isCoAuthor = user && article && article.authors.some((a) => a.author_id === user.id)
@@ -78,11 +87,49 @@ export function ArticleDetailPage() {
   useEffect(() => {
     if (!id || !shouldLoadVersions) return
     setVersionsLoading(true)
-    getArticleVersions(id)
-      .then(setVersions)
-      .catch(() => {})
-      .finally(() => setVersionsLoading(false))
+    ;(async () => {
+      try {
+        const v = await getArticleVersions(id)
+        const info: Record<string, {needsChanges: boolean; commentCount: number}> = {}
+        await Promise.all(v.map(async (ver) => {
+          try {
+            const assignment = await getVersionAssignment(id, ver.id)
+            if (assignment?.review_status === 'REQUESTING_CHANGES') {
+              const comments = await getComments(ver.id)
+              info[ver.id] = { needsChanges: true, commentCount: comments.length }
+            } else {
+              info[ver.id] = { needsChanges: false, commentCount: 0 }
+            }
+          } catch {
+            info[ver.id] = { needsChanges: false, commentCount: 0 }
+          }
+        }))
+        setVersions(v)
+        setVersionReviewInfo(info)
+      } catch {
+        // ignore
+      } finally {
+        setVersionsLoading(false)
+      }
+    })()
   }, [id, shouldLoadVersions])
+
+  useEffect(() => {
+    if (!id || !article || article.status !== 'REVIEW' || !article.current_version_id) return
+    setReviewLoading(true)
+    getVersionAssignment(id, article.current_version_id)
+      .then((assignment) => {
+        setReviewAssignment(assignment)
+        if (assignment?.id) {
+          getReviewByAssignment(assignment.id).then(setReviewDecision)
+        }
+      })
+      .catch(() => {})
+    getComments(article.current_version_id)
+      .then(setReviewComments)
+      .catch(() => {})
+      .finally(() => setReviewLoading(false))
+  }, [id, article?.status, article?.current_version_id])
 
   useEffect(() => {
     if (!authorSearchQuery.trim() || authorSearchQuery.length < 2) {
@@ -113,11 +160,26 @@ export function ArticleDetailPage() {
 
   const handleSetCurrent = async (versionId: string) => {
     if (!id) return
+    const v = versions.find((x) => x.id === versionId)
+    if (v?.status === 'REJECTED') {
+      alert('Нельзя сделать отклонённую версию текущей')
+      return
+    }
     try {
       const updated = await setCurrentVersion(id, versionId)
       setArticle(updated)
       const updatedVersions = await getArticleVersions(id)
       setVersions(updatedVersions)
+    } catch (e: any) {
+      alert(e.message ?? 'Ошибка')
+    }
+  }
+
+  const handleToggleVisibility = async () => {
+    if (!id || !article) return
+    try {
+      const result = article.is_visible ? await hideArticle(id) : await showArticle(id)
+      setArticle({ ...article, is_visible: result.is_visible })
     } catch (e: any) {
       alert(e.message ?? 'Ошибка')
     }
@@ -139,6 +201,23 @@ export function ArticleDetailPage() {
     try {
       await submitForApproval(id)
       loadArticle()
+      const updated = await getArticleVersions(id)
+      const info: Record<string, {needsChanges: boolean; commentCount: number}> = {}
+      await Promise.all(updated.map(async (ver) => {
+        try {
+          const assignment = await getVersionAssignment(id, ver.id)
+          if (assignment?.review_status === 'REQUESTING_CHANGES') {
+            const comments = await getComments(ver.id)
+            info[ver.id] = { needsChanges: true, commentCount: comments.length }
+          } else {
+            info[ver.id] = { needsChanges: false, commentCount: 0 }
+          }
+        } catch {
+          info[ver.id] = { needsChanges: false, commentCount: 0 }
+        }
+      }))
+      setVersions(updated)
+      setVersionReviewInfo(info)
     } catch (e: any) {
       alert(e.message ?? 'Ошибка')
     }
@@ -208,6 +287,11 @@ export function ArticleDetailPage() {
                 На согласование
               </Button>
             )}
+            {isCreator && (
+              <Button size="sm" variant="outline" onClick={handleToggleVisibility}>
+                {article.is_visible ? 'Скрыть' : 'Показать'}
+              </Button>
+            )}
             <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusColors[article.status] || ''}`}>
               {statusLabels[article.status] || article.status}
             </span>
@@ -218,7 +302,15 @@ export function ArticleDetailPage() {
 
         {article.authors.length > 0 && (
           <p className="text-sm text-muted-foreground mb-2">
-            Авторы: {article.authors.map((a) => a.name).join(', ')}
+            Авторы:{' '}
+            {article.authors.map((a, i) => (
+              <span key={a.author_id}>
+                {i > 0 && ', '}
+                <Link to={`/users/${a.author_id}`} className="hover:underline font-medium">
+                  {a.name}
+                </Link>
+              </span>
+            ))}
           </p>
         )}
 
@@ -277,30 +369,32 @@ export function ArticleDetailPage() {
             )}
 
             <div className="space-y-1">
-              {article.authors.map((a) => {
-                const isRemovable = a.author_id !== user?.id
-                return (
-                  <div key={a.author_id} className="flex items-center justify-between rounded-lg border px-3 py-2">
-                    <div>
-                      <span className="text-sm font-medium">{a.name}</span>
-                      {a.author_id === article.creator_id && (
-                        <span className="ml-2 text-xs text-muted-foreground">(создатель)</span>
+              {article.authors
+                .filter((a) => a.author_id !== user?.id)
+                .map((a) => {
+                  const isRemovable = a.author_id !== user?.id
+                  return (
+                    <div key={a.author_id} className="flex items-center justify-between rounded-lg border px-3 py-2">
+                      <div>
+                        <Link to={`/users/${a.author_id}`} className="text-sm font-medium hover:underline">{a.name}</Link>
+                        {a.author_id === article.creator_id && (
+                          <span className="ml-2 text-xs text-muted-foreground">(создатель)</span>
+                        )}
+                        <p className="text-xs text-muted-foreground">{a.email}</p>
+                      </div>
+                      {isRemovable && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive"
+                          onClick={() => handleRemoveAuthor(a.author_id)}
+                        >
+                          Удалить
+                        </Button>
                       )}
-                      <p className="text-xs text-muted-foreground">{a.email}</p>
                     </div>
-                    {isRemovable && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-destructive"
-                        onClick={() => handleRemoveAuthor(a.author_id)}
-                      >
-                        Удалить
-                      </Button>
-                    )}
-                  </div>
-                )
-              })}
+                  )
+                })}
             </div>
           </section>
         )}
@@ -373,6 +467,46 @@ export function ArticleDetailPage() {
           )}
         </div>
 
+        {/* ── Review info for authors (REVIEW status) ── */}
+        {article.status === 'REVIEW' && (isCreator || isCoAuthor) && (
+          <section className="border-t pt-6 mt-6">
+            <h2 className="text-lg font-semibold mb-3">Рецензирование</h2>
+            {reviewLoading ? (
+              <p className="text-sm text-muted-foreground">Загрузка...</p>
+            ) : reviewAssignment ? (
+              <div className="space-y-3">
+                {reviewDecision ? (
+                  <div className="rounded-lg border px-4 py-3">
+                    <p className="text-sm font-medium">Решение рецензента</p>
+                    <p className="text-sm mt-1">{reviewDecision.status === 'APPROVED' ? 'Одобрена' : reviewDecision.status === 'REJECTED' ? 'Отклонена' : 'Запрошены изменения'}</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Статья передана на рецензирование. Ожидайте решения.</p>
+                )}
+
+                {reviewComments.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Комментарии рецензента</p>
+                    {reviewComments.map((c: any) => (
+                      <div key={c.id} className="rounded-lg border px-3 py-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-medium">{c.user_name || 'Рецензент'}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(c.created_at).toLocaleString('ru-RU')}
+                          </span>
+                        </div>
+                        <p className="text-sm">{c.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Информация о рецензировании недоступна</p>
+            )}
+          </section>
+        )}
+
         {shouldLoadVersions && (
           <section className="border-t pt-6 mt-6">
             <div className="flex items-center justify-between mb-4">
@@ -395,19 +529,22 @@ export function ArticleDetailPage() {
                   return (
                     <div
                       key={v.id}
-                      className={`rounded-xl border p-4 flex items-center justify-between ${isCurrent ? 'border-primary/50 bg-primary/5' : ''}`}
+                      className={`rounded-xl border p-4 ${isCurrent ? 'border-primary/50 bg-primary/5' : ''}`}
                     >
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium text-sm">Версия {v.version_number}</span>
                           {isCurrent && (
                             <span className="rounded-full bg-primary/10 text-primary text-xs px-2 py-0.5 font-medium">
                               Текущая
                             </span>
                           )}
-                          {v.status !== article.status && (
-                            <span className={`rounded-full px-2 py-0.5 text-xs ${statusColors[v.status] || ''}`}>
-                              {statusLabels[v.status] || v.status}
+                          <span className={`rounded-full px-2 py-0.5 text-xs ${statusColors[v.status] || ''}`}>
+                            {statusLabels[v.status] || v.status}
+                          </span>
+                          {versionReviewInfo[v.id]?.needsChanges && (
+                            <span className="rounded-full bg-amber-100 text-amber-800 text-xs px-2 py-0.5 font-medium">
+                              Требует изменений{versionReviewInfo[v.id].commentCount > 0 ? ` (${versionReviewInfo[v.id].commentCount})` : ''}
                             </span>
                           )}
                         </div>
@@ -416,7 +553,12 @@ export function ArticleDetailPage() {
                           {new Date(v.created_at).toLocaleDateString('ru-RU')}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2 ml-4 shrink-0 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap mt-3 pt-3 border-t">
+                        {(isCreator || isCoAuthor) && (
+                          <Button size="sm" variant="ghost" onClick={() => navigate(`/articles/${id}/review?version=${v.id}`)}>
+                            Просмотр
+                          </Button>
+                        )}
                         {(isCreator || isCoAuthor) && v.status === 'DRAFT' && (
                           <Button size="sm" variant="outline" onClick={() => navigate(`/articles/${id}/edit?version=${v.id}`)}>
                             Редактировать
@@ -427,7 +569,7 @@ export function ArticleDetailPage() {
                             На согласование
                           </Button>
                         )}
-                        {isCreator && !isCurrent && (
+                        {isCreator && !isCurrent && v.status !== 'REJECTED' && (
                           <>
                             <Button size="sm" variant="outline" onClick={() => handleSetCurrent(v.id)}>
                               Сделать текущей
@@ -441,11 +583,6 @@ export function ArticleDetailPage() {
                               Удалить
                             </Button>
                           </>
-                        )}
-                        {isCoAuthor && v.status === 'PENDING_APPROVAL' && (
-                          <Button size="sm" onClick={() => navigate(`/articles/${id}/review?version=${v.id}`)}>
-                            Рассмотреть
-                          </Button>
                         )}
                       </div>
                     </div>

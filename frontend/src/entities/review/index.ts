@@ -9,6 +9,7 @@ export type {
 export {
   getReviewAssignments,
   getReviewAssignment,
+  getVersionAssignment,
   getReviewByAssignment,
   submitReview,
   getComments,

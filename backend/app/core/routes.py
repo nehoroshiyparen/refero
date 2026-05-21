@@ -14,4 +14,4 @@ def register_routes(app: FastAPI, prefix: str = "/api"):
     app.include_router(citation_router, prefix=f"{prefix}/citations", tags=["citations"])
     app.include_router(journal_router, prefix=f"{prefix}/journals", tags=["journals"])
     app.include_router(review_router, prefix=f"{prefix}/reviews", tags=["reviews"])
-    app.include_router(article_reviews_router, tags=["reviews", "articles"])
+    app.include_router(article_reviews_router, prefix=prefix, tags=["reviews", "articles"])

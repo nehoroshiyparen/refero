@@ -469,6 +469,15 @@ class ArticleService(BaseService):
                 message="Article submitted for review (no co-authors to approve)"
             )
 
+        old = await (
+            self._article_approvals_repo.query()
+            .where(ArticleApprovals.article_version_id == version.id)
+            .all(self._session)
+        )
+        for o in old:
+            await self._session.delete(o)
+        await self._session.flush()
+
         for co_author in co_authors:
             await self._article_approvals_repo.create({
                 "id": uuid.uuid4(),
@@ -765,6 +774,18 @@ class ArticleService(BaseService):
         return article
 
     async def _assign_random_reviewer(self, version_id: uuid.UUID) -> None:
+        existing = await (
+            self._assignment_repo.query()
+            .with_review()
+            .where(ReviewAssignment.article_version_id == version_id)
+            .one_or_none(self._session)
+        )
+        if existing:
+            if existing.review is None:
+                return
+            await self._session.delete(existing)
+            await self._session.flush()
+
         random_reviewer = (
             await self._session.execute(
                 select(User)

@@ -28,6 +28,7 @@ export type CommentPayload = {
   id: string
   article_version_id: string
   user_id: string
+  user_name: string
   content: string
   created_at: string
 }

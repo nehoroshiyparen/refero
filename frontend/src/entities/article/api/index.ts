@@ -98,3 +98,15 @@ export function approveVersion(articleId: string, versionId: string, approved: b
     method: 'POST',
   })
 }
+
+export function hideArticle(articleId: string) {
+  return request<ArticlePayload>(`/api/articles/${articleId}/hide`, {
+    method: 'POST',
+  })
+}
+
+export function showArticle(articleId: string) {
+  return request<ArticlePayload>(`/api/articles/${articleId}/show`, {
+    method: 'POST',
+  })
+}

@@ -1,5 +1,5 @@
 import { request } from '@/shared/api/client'
-import type { UserBrief, UserFilters } from '../types'
+import type { UserBrief, UserFilters, UserProfile } from '../types'
 
 export function getUsers(filters: UserFilters = {}) {
   const params = new URLSearchParams()
@@ -9,4 +9,8 @@ export function getUsers(filters: UserFilters = {}) {
   if (filters.offset) params.set('offset', String(filters.offset))
   const qs = params.toString()
   return request<UserBrief[]>(`/api/users${qs ? `?${qs}` : ''}`)
+}
+
+export function getUser(id: string) {
+  return request<UserProfile>(`/api/users/${id}`)
 }

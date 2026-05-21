@@ -27,12 +27,15 @@ const statusColors: Record<string, string> = {
 export function ProfilePage() {
   const { user, tryLoadUser } = useAuth()
   const navigate = useNavigate()
-  const [tab, setTab] = useState<'overview' | 'articles'>('overview')
+  const [tab, setTab] = useState<'overview' | 'articles' | 'reviews'>('overview')
+  const isReviewer = user.roles.includes('REVIEWER')
   const [articles, setArticles] = useState<ArticlePayload[]>([])
 
   useEffect(() => {
     if (!user) return
-    getArticles({ author_id: user.id }).then(setArticles)
+    getArticles({ author_id: user.id, status: 'PUBLISHED' }).then((list) =>
+      setArticles(list.filter((a) => a.is_visible)),
+    )
   }, [user])
 
   if (!user) return <Navigate to="/login" replace />
@@ -103,6 +106,9 @@ export function ProfilePage() {
               <TabButton active={tab === 'articles'} onClick={() => setTab('articles')}>
                 Статьи <span className="text-muted-foreground font-normal">{articles.length}</span>
               </TabButton>
+              {isReviewer && (
+                <TabButton active={tab === 'reviews'} onClick={() => setTab('reviews')}>Рецензии</TabButton>
+              )}
             </div>
 
             {tab === 'overview' && (
@@ -207,6 +213,17 @@ export function ProfilePage() {
                 {articles.length === 0 && (
                   <p className="text-sm text-muted-foreground py-8 text-center">Статей пока нет</p>
                 )}
+              </div>
+            )}
+
+            {tab === 'reviews' && (
+              <div className="rounded-xl border border-dashed p-8 flex flex-col items-center gap-4 text-center">
+                <p className="text-muted-foreground">
+                  Просмотрите назначенные вам рецензии
+                </p>
+                <Button onClick={() => navigate('/reviews/assignments')}>
+                  Перейти к рецензиям
+                </Button>
               </div>
             )}
           </main>

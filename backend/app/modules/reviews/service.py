@@ -218,7 +218,7 @@ class ReviewService(BaseService):
             review_status=ReviewStatusEnum(a.review.status) if a.review else None,
             review_completed_at=a.review.completed_at if a.review else None,
             article_id=av.article_id if av else None,
-            article_title=av.article.title if av and av.article else None,
+            article_title=av.title if av else None,
             version_number=av.version_number if av else None,
             version_title=av.title if av else None,
         )
