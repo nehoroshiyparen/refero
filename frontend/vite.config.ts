@@ -19,6 +19,12 @@ export default defineConfig({
   server: {
     host: true,
     port: 8080,
+    proxy: {
+      '/api': {
+        target: 'http://backend:7812',
+        changeOrigin: true,
+      },
+    },
     watch: {
       usePolling: true,
     },

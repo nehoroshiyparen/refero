@@ -13,7 +13,7 @@ class ArticleCreateDTO(BaseModel):
 
     language: str = Field(default="en", min_length=2, max_length=5)
 
-    pdf_path: str
+    pdf_path: str = ""
 
     journal_id: uuid.UUID | None = None
 

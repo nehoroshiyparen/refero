@@ -46,6 +46,7 @@ export type ArticlePayload = {
   download_count: number
   doi?: string | null
   pdf_path: string
+  pdf_url?: string | null
   journal_id?: string | null
   creator_id?: string | null
   updated_by_user_id?: string | null
@@ -88,6 +89,7 @@ export type ArticleVersionPayload = {
   keywords: string[]
   language: string
   pdf_path: string
+  pdf_url?: string | null
   status: ArticleStatus
   updated_by_user_id?: string | null
   published_at?: string | null

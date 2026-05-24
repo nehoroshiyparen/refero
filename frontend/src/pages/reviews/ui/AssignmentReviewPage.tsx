@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { Header } from '@/shared/ui/header'
 import { Button } from '@/shared/ui/button'
+import { PdfViewer } from '@/shared/ui/pdf-viewer'
 import { useAuth } from '@/app/providers/AuthProvider'
 import {
   getReviewAssignment,
@@ -197,6 +198,14 @@ export function AssignmentReviewPage() {
             <p className="text-sm text-muted-foreground">Не удалось загрузить версию</p>
           )}
         </section>
+
+        {/* PDF viewer */}
+        {version?.pdf_url && (
+          <section className="rounded-lg border p-4">
+            <h2 className="text-lg font-semibold mb-4">Просмотр PDF</h2>
+            <PdfViewer pdfUrl={version.pdf_url} />
+          </section>
+        )}
 
         <section className="rounded-lg border p-4">
           <h2 className="text-lg font-semibold mb-4">Комментарии</h2>

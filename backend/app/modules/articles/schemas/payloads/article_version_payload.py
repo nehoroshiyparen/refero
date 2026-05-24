@@ -12,6 +12,7 @@ class ArticleVersionPayload(BaseModel):
     keywords: list[str] = []
     language: str = "en"
     pdf_path: str
+    pdf_url: str | None = None
     status: ArticleStatus
     updated_by_user_id: uuid.UUID | None = None
     published_at: datetime | None = None

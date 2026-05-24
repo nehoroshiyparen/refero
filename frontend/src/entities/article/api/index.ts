@@ -110,3 +110,17 @@ export function showArticle(articleId: string) {
     method: 'POST',
   })
 }
+
+export function uploadArticlePdf(articleId: string, versionId: string, file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request<{ pdf_path: string; pdf_url: string }>(
+    `/api/articles/${articleId}/versions/${versionId}/upload`,
+    { method: 'POST', body: formData },
+  )
+}
+
+export function getDownloadUrl(articleId: string, versionId?: string): string {
+  if (versionId) return `/api/articles/${articleId}/versions/${versionId}/download`
+  return `/api/articles/${articleId}/download`
+}

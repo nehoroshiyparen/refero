@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, status, Query
+from fastapi import APIRouter, Depends, status, Query, UploadFile, File
 from fastapi.responses import FileResponse
 
 from app.core.responses import SuccessResponse
@@ -300,17 +300,57 @@ async def delete_author(
 
 @router.get(
     "/{id}/download",
-    summary="Скачать PDF статьи",
+    summary="Скачать PDF статьи (текущая версия)",
 )
 async def download_article(
     id: uuid.UUID,
+    inline: bool = False,
     service: ArticleService = Depends(get_service(ArticleService)),
 ):
     pdf_path = await service.download_article(id)
     return FileResponse(
         path=pdf_path,
         media_type="application/pdf",
-        filename=pdf_path.split("/")[-1],
+        filename=None if inline else pdf_path.split("/")[-1],
+    )
+
+
+@router.get(
+    "/{id}/versions/{version_id}/download",
+    summary="Скачать PDF версии",
+)
+async def download_version_pdf(
+    id: uuid.UUID,
+    version_id: uuid.UUID,
+    inline: bool = False,
+    service: ArticleService = Depends(get_service(ArticleService)),
+):
+    pdf_path = await service.download_version_pdf(id, version_id)
+    return FileResponse(
+        path=pdf_path,
+        media_type="application/pdf",
+        filename=None if inline else pdf_path.split("/")[-1],
+    )
+
+
+@router.post(
+    "/{id}/versions/{version_id}/upload",
+    response_model=SuccessResponse,
+    summary="Загрузить PDF для версии",
+)
+async def upload_version_pdf(
+    id: uuid.UUID,
+    version_id: uuid.UUID,
+    file: UploadFile = File(...),
+    user: AccessTokenPayload = Depends(require_role([RoleName.AUTHOR])),
+    service: ArticleService = Depends(get_service(ArticleService)),
+):
+    content = await file.read()
+    pdf_path = await service.upload_pdf(id, version_id, content, file.filename or "file.pdf", user_id=user.id)
+    pdf_url = f"/api/articles/{id}/versions/{version_id}/download"
+    return SuccessResponse(
+        message="PDF uploaded",
+        data={"pdf_path": pdf_path, "pdf_url": pdf_url},
     )
 
 

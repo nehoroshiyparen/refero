@@ -1,3 +1,4 @@
+import os
 import uuid
 from datetime import datetime, timezone
 
@@ -629,7 +630,7 @@ class ArticleService(BaseService):
         )
 
     # ------------------------------------------------------------------ #
-    #  DOWNLOAD
+    #  PDF UPLOAD / DOWNLOAD
     # ------------------------------------------------------------------ #
 
     async def download_article(self, id: uuid.UUID) -> str:
@@ -638,17 +639,81 @@ class ArticleService(BaseService):
         if not article.current_version or not article.current_version.pdf_path:
             raise NotFound("Article has no PDF file")
 
+        if not os.path.isfile(article.current_version.pdf_path):
+            raise NotFound("PDF file not found on server")
+
         await self._article_repo.update(id, {"download_count": article.download_count + 1})
 
         return article.current_version.pdf_path
+
+    async def download_version_pdf(self, article_id: uuid.UUID, version_id: uuid.UUID) -> str:
+        version = await (
+            self._version_repo.query()
+            .where(
+                ArticleVersion.id == version_id,
+                ArticleVersion.article_id == article_id,
+            )
+            .one_or_none(self._session)
+        )
+        if not version or not version.pdf_path:
+            raise NotFound("Version or PDF not found")
+        if not os.path.isfile(version.pdf_path):
+            raise NotFound("PDF file not found on server")
+        return version.pdf_path
+
+    async def upload_pdf(
+        self,
+        article_id: uuid.UUID,
+        version_id: uuid.UUID,
+        file_content: bytes,
+        filename: str,
+        user_id: uuid.UUID,
+    ) -> str:
+        article = await self._get_article_or_fail(article_id)
+
+        await self._check_is_author(article_id, user_id)
+
+        version = await (
+            self._version_repo.query()
+            .where(
+                ArticleVersion.id == version_id,
+                ArticleVersion.article_id == article_id,
+            )
+            .one_or_none(self._session)
+        )
+        if not version:
+            raise NotFound("Version not found")
+
+        if version.status != ArticleStatus.DRAFT:
+            raise BadRequest("Can only upload PDF to draft versions")
+
+        from app.core.config import settings
+        upload_dir = os.path.join(settings.UPLOAD_DIR, str(article_id))
+        os.makedirs(upload_dir, exist_ok=True)
+
+        ext = os.path.splitext(filename)[1] or ".pdf"
+        save_name = f"{version_id}{ext}"
+        file_path = os.path.join(upload_dir, save_name)
+
+        with open(file_path, "wb") as f:
+            f.write(file_content)
+
+        await self._version_repo.update(version_id, {"pdf_path": file_path})
+
+        return file_path
 
     # ------------------------------------------------------------------ #
     #  MAPPER HELPERS
     # ------------------------------------------------------------------ #
 
     @staticmethod
-    def _to_payload(article: Article) -> ArticlePayload:
+    def _make_pdf_url(article_id: uuid.UUID, version_id: uuid.UUID | None = None) -> str | None:
+        from app.core.config import settings
+        return f"/api/articles/{article_id}/versions/{version_id}/download" if version_id else None
+
+    def _to_payload(self, article: Article) -> ArticlePayload:
         cv = article.current_version
+        pdf_url = self._make_pdf_url(article.id, cv.id if cv else None) if cv and cv.pdf_path else None
         return ArticlePayload(
             id=article.id,
             current_version_id=article.current_version_id,
@@ -658,6 +723,7 @@ class ArticleService(BaseService):
             language=cv.language if cv else "en",
             doi=article.doi,
             pdf_path=cv.pdf_path if cv else "",
+            pdf_url=pdf_url,
             journal_id=article.journal_id,
             status=ArticleStatus(cv.status) if cv else ArticleStatus.DRAFT,
             version_number=cv.version_number if cv else 1,
@@ -671,8 +737,7 @@ class ArticleService(BaseService):
             updated_at=cv.updated_at if cv else None,
         )
 
-    @staticmethod
-    def _to_full_payload(article: Article) -> ArticleFullPayload:
+    def _to_full_payload(self, article: Article) -> ArticleFullPayload:
         authors = []
         for aa in (article.authors or []):
             authors.append(AuthorBriefPayload(
@@ -701,6 +766,7 @@ class ArticleService(BaseService):
             ))
 
         cv = article.current_version
+        pdf_url = self._make_pdf_url(article.id, cv.id if cv else None) if cv and cv.pdf_path else None
         return ArticleFullPayload(
             id=article.id,
             current_version_id=article.current_version_id,
@@ -710,6 +776,7 @@ class ArticleService(BaseService):
             language=cv.language if cv else "en",
             doi=article.doi,
             pdf_path=cv.pdf_path if cv else "",
+            pdf_url=pdf_url,
             journal_id=article.journal_id,
             status=ArticleStatus(cv.status) if cv else ArticleStatus.DRAFT,
             version_number=cv.version_number if cv else 1,
@@ -726,8 +793,8 @@ class ArticleService(BaseService):
             citations=citations,
         )
 
-    @staticmethod
-    def _to_version_payload(version: ArticleVersion) -> ArticleVersionPayload:
+    def _to_version_payload(self, version: ArticleVersion) -> ArticleVersionPayload:
+        pdf_url = self._make_pdf_url(version.article_id, version.id) if version.pdf_path else None
         return ArticleVersionPayload(
             id=version.id,
             version_number=version.version_number,
@@ -736,6 +803,7 @@ class ArticleService(BaseService):
             keywords=version.keywords or [],
             language=version.language,
             pdf_path=version.pdf_path,
+            pdf_url=pdf_url,
             status=ArticleStatus(version.status),
             updated_by_user_id=version.updated_by_user_id,
             published_at=version.published_at,

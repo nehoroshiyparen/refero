@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { Header } from '@/shared/ui/header'
 import { Button } from '@/shared/ui/button'
+import { PdfViewer } from '@/shared/ui/pdf-viewer'
 import { useAuth } from '@/app/providers/AuthProvider'
 import {
   getArticle,
@@ -15,6 +16,7 @@ import {
   removeAuthor,
   hideArticle,
   showArticle,
+  getDownloadUrl,
 } from '@/entities/article/api'
 import { getUsers } from '@/entities/user/api'
 import { getVersionAssignment, getReviewByAssignment, getComments } from '@/entities/review/api'
@@ -444,6 +446,18 @@ export function ArticleDetailPage() {
                   <p className="font-medium">{new Date(article.created_at).toLocaleDateString('ru-RU')}</p>
                 </div>
               )}
+              {article.pdf_url && (
+                <div className="col-span-full mt-2">
+                  <a
+                    href={article.pdf_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 py-2"
+                  >
+                    Скачать PDF
+                  </a>
+                </div>
+              )}
               {article.updated_at && (
                 <div>
                   <span className="text-muted-foreground">Обновлена</span>
@@ -463,6 +477,13 @@ export function ArticleDetailPage() {
                   </li>
                 ))}
               </ul>
+            </section>
+          )}
+
+          {article.pdf_url && (
+            <section className="border-t pt-6">
+              <h2 className="text-lg font-semibold mb-3">Просмотр PDF</h2>
+              <PdfViewer pdfUrl={article.pdf_url} />
             </section>
           )}
         </div>
@@ -568,6 +589,16 @@ export function ArticleDetailPage() {
                           <Button size="sm" variant="outline" onClick={handleSubmitForApproval}>
                             На согласование
                           </Button>
+                        )}
+                        {(v.pdf_url || v.pdf_path) && (
+                          <a
+                            href={v.pdf_url || getDownloadUrl(id!, v.id)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 rounded-md px-3 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground"
+                          >
+                            Скачать PDF
+                          </a>
                         )}
                         {isCreator && !isCurrent && v.status !== 'REJECTED' && (
                           <>

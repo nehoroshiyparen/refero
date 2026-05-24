@@ -12,6 +12,7 @@ class ArticlePayload(BaseModel):
     language: str = "en"
     doi: str | None = None
     pdf_path: str
+    pdf_url: str | None = None
     journal_id: uuid.UUID | None = None
     status: ArticleStatus
     version_number: int = 1

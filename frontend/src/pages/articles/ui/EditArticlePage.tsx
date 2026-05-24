@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Header } from '@/shared/ui/header'
 import { Button } from '@/shared/ui/button'
-import { getArticle, updateArticle, getArticleVersionById } from '@/entities/article/api'
+import { getArticle, updateArticle, getArticleVersionById, uploadArticlePdf, getDownloadUrl } from '@/entities/article/api'
 import { getJournals } from '@/entities/journal/api'
 import type { ArticleFullPayload } from '@/entities/article/types'
 import type { JournalPayload } from '@/entities/journal/types'
@@ -25,6 +25,10 @@ export function EditArticlePage() {
   const [language, setLanguage] = useState('en')
   const [journalId, setJournalId] = useState('')
 
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+
   useEffect(() => {
     if (!id) return
     const load = versionId
@@ -42,10 +46,31 @@ export function EditArticlePage() {
         setKeywords(((art as any).keywords ?? []).join(', '))
         setLanguage((art as any).language)
         setJournalId((art as any).journal_id ?? '')
+        setPdfUrl((art as any).pdf_url ?? null)
       })
       .catch((e: any) => setError(e.message ?? 'Ошибка загрузки'))
       .finally(() => setLoading(false))
   }, [id, versionId])
+
+  const handleUploadPdf = async (file: File) => {
+    if (!id || !versionId) return
+    setUploading(true)
+    try {
+      await uploadArticlePdf(id, versionId, file)
+      const v = await getArticleVersionById(id, versionId)
+      setPdfUrl(v.pdf_url ?? null)
+    } catch (e: any) {
+      alert(e.message ?? 'Ошибка загрузки PDF')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) handleUploadPdf(file)
+    e.target.value = ''
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -153,6 +178,57 @@ export function EditArticlePage() {
               </select>
             </div>
           </div>
+
+          {versionId && (
+            <div className="border-t pt-6 space-y-3">
+              <h2 className="text-lg font-semibold">PDF</h2>
+              {pdfUrl ? (
+                <div className="flex items-center gap-2">
+                  <a
+                    href={pdfUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring h-9 px-4 py-2 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground"
+                  >
+                    Скачать PDF
+                  </a>
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    ref={fileInputRef}
+                    className="hidden"
+                    onChange={handleFileSelect}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={uploading}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {uploading ? 'Загрузка...' : 'Заменить PDF'}
+                  </Button>
+                </div>
+              ) : (
+                <div>
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    ref={fileInputRef}
+                    className="hidden"
+                    onChange={handleFileSelect}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={uploading}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {uploading ? 'Загрузка...' : 'Загрузить PDF'}
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 

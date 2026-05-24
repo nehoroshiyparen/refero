@@ -35,7 +35,7 @@ export function CreateArticlePage() {
         abstract: abstract || undefined,
         keywords: keywords.length > 0 ? keywords : undefined,
         language,
-        pdf_path: 'upload/pending.pdf',
+        pdf_path: '',
         journal_id: journalId || undefined,
       })
       navigate('/articles')
