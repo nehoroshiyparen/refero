@@ -18,6 +18,13 @@ export function getAccessToken() {
   return accessToken
 }
 
+export function withAuth(url: string): string {
+  const token = accessToken
+  if (!token) return url
+  const sep = url.includes('?') ? '&' : '?'
+  return `${url}${sep}token=${token}`
+}
+
 export function loadAccessToken(): string | null {
   const token = localStorage.getItem(STORAGE_KEY)
   if (token) setAccessToken(token)

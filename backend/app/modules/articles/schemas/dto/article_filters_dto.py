@@ -15,5 +15,7 @@ class ArticleFiltersDTO(BaseModel):
 
     keywords: list[str] | None = None
 
+    is_visible: bool | None = None
+
     limit: int = Field(default=20, ge=1, le=100)
     offset: int = Field(default=0, ge=0)

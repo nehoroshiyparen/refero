@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { Header } from '@/shared/ui/header'
 import { Button } from '@/shared/ui/button'
 import { PdfViewer } from '@/shared/ui/pdf-viewer'
+import { withAuth } from '@/shared/api/client'
 import { useAuth } from '@/app/providers/AuthProvider'
 import {
   getArticle,
@@ -449,7 +450,7 @@ export function ArticleDetailPage() {
               {article.pdf_url && (
                 <div className="col-span-full mt-2">
                   <a
-                    href={article.pdf_url}
+                    href={withAuth(article.pdf_url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 py-2"
@@ -592,7 +593,7 @@ export function ArticleDetailPage() {
                         )}
                         {(v.pdf_url || v.pdf_path) && (
                           <a
-                            href={v.pdf_url || getDownloadUrl(id!, v.id)}
+                            href={withAuth(v.pdf_url || getDownloadUrl(id!, v.id))}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 rounded-md px-3 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground"

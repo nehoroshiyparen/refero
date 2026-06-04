@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { getAccessToken } from '@/shared/api/client'
 
 interface PdfViewerProps {
   pdfUrl: string
@@ -17,9 +18,10 @@ export function PdfViewer({ pdfUrl, height = '1000px' }: PdfViewerProps) {
     setChecking(true)
 
     const controller = new AbortController()
+    const token = getAccessToken()
 
     const sep = pdfUrl.includes('?') ? '&' : '?'
-    const checkUrl = `${pdfUrl}${sep}inline=1`
+    const checkUrl = `${pdfUrl}${sep}inline=1${token ? `&token=${token}` : ''}`
 
     fetch(checkUrl, { signal: controller.signal })
       .then(async (res) => {
@@ -36,8 +38,9 @@ export function PdfViewer({ pdfUrl, height = '1000px' }: PdfViewerProps) {
 
   if (!pdfUrl) return null
 
+  const token = getAccessToken()
   const sep = pdfUrl.includes('?') ? '&' : '?'
-  const viewerUrl = `${pdfUrl}${sep}inline=1#toolbar=0`
+  const viewerUrl = `${pdfUrl}${sep}inline=1${token ? `&token=${token}` : ''}#toolbar=0`
 
   return (
     <div className="rounded-lg border overflow-hidden bg-muted/20">

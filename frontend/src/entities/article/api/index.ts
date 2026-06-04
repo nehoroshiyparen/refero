@@ -1,4 +1,4 @@
-import { request } from '@/shared/api/client'
+import { request, getAccessToken } from '@/shared/api/client'
 import type { ArticlePayload, ArticleFullPayload, ArticleFilters, ArticleVersionPayload, ApprovalBrief, CreateArticleData, UpdateArticleData } from '../types'
 
 function buildQuery(filters: ArticleFilters): string {
@@ -9,6 +9,7 @@ function buildQuery(filters: ArticleFilters): string {
   if (filters.author_id) params.set('author_id', filters.author_id)
   if (filters.language) params.set('language', filters.language)
   if (filters.keywords?.length) params.set('keywords', filters.keywords.join(','))
+  if (filters.is_visible !== undefined && filters.is_visible !== null) params.set('is_visible', String(filters.is_visible))
   if (filters.limit) params.set('limit', String(filters.limit))
   if (filters.offset) params.set('offset', String(filters.offset))
   const qs = params.toString()
@@ -121,6 +122,9 @@ export function uploadArticlePdf(articleId: string, versionId: string, file: Fil
 }
 
 export function getDownloadUrl(articleId: string, versionId?: string): string {
-  if (versionId) return `/api/articles/${articleId}/versions/${versionId}/download`
-  return `/api/articles/${articleId}/download`
+  const token = getAccessToken()
+  const base = versionId
+    ? `/api/articles/${articleId}/versions/${versionId}/download`
+    : `/api/articles/${articleId}/download`
+  return token ? `${base}?token=${token}` : base
 }

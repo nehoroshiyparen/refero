@@ -86,3 +86,8 @@ class ArticleQueryBuilder(BaseQueryBuilder[Article]):
     def with_current_version(self) -> "ArticleQueryBuilder":
         self._stmt = self._stmt.options(selectinload(Article.current_version))
         return self
+
+    def filter_is_visible(self, is_visible: bool | None) -> "ArticleQueryBuilder":
+        if is_visible is not None:
+            self._stmt = self._stmt.where(Article.is_visible == is_visible)
+        return self

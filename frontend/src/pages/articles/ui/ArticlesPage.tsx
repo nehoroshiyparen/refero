@@ -41,7 +41,7 @@ export function ArticlesPage() {
 
   useEffect(() => {
     setLoading(true)
-    getArticles({ query: query || undefined, journal_id: journalId || undefined, status: 'PUBLISHED' })
+    getArticles({ query: query || undefined, journal_id: journalId || undefined, status: 'PUBLISHED', is_visible: true })
       .then(setArticles)
       .finally(() => setLoading(false))
   }, [query, journalId])

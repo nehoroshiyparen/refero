@@ -37,9 +37,9 @@ export function AppRouter() {
         <Route path="/" element={<RequireGuest><LandingPage /></RequireGuest>} />
         <Route path="/login" element={<RequireGuest><LoginPage /></RequireGuest>} />
         <Route path="/register" element={<RequireGuest><RegisterPage /></RequireGuest>} />
-        <Route path="/articles" element={<ArticlesPage />} />
+        <Route path="/articles" element={<RequireAuth><ArticlesPage /></RequireAuth>} />
         <Route path="/articles/new" element={<RequireAuth><CheckRole roles={['AUTHOR', 'ADMIN']}><CreateArticlePage /></CheckRole></RequireAuth>} />
-        <Route path="/articles/:id" element={<ArticleDetailPage />} />
+        <Route path="/articles/:id" element={<RequireAuth><ArticleDetailPage /></RequireAuth>} />
         <Route path="/articles/:id/review" element={<RequireAuth><ReviewPage /></RequireAuth>} />
         <Route path="/articles/:id/edit" element={<RequireAuth><CheckRole roles={['AUTHOR', 'ADMIN']}><EditArticlePage /></CheckRole></RequireAuth>} />
         <Route path="/my-articles" element={<RequireAuth><MyArticlesPage /></RequireAuth>} />

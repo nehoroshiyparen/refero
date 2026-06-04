@@ -12,6 +12,7 @@ export function login(data: LoginRequest) {
   return request<AuthResponse>('/api/auth/login', {
     method: 'POST',
     body: JSON.stringify(data),
+    retry: false,
   })
 }
 
@@ -19,6 +20,7 @@ export function register(data: RegisterRequest) {
   return request<AuthResponse>('/api/auth/register', {
     method: 'POST',
     body: JSON.stringify(data),
+    retry: false,
   })
 }
 

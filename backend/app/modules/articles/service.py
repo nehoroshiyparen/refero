@@ -62,6 +62,11 @@ class ArticleService(BaseService):
     # ------------------------------------------------------------------ #
 
     async def get_articles(self, filters: ArticleFiltersDTO) -> tuple[list[ArticlePayload], PaginationMeta]:
+        # Public listing: only show visible articles by default
+        is_visible = filters.is_visible
+        if is_visible is None and filters.author_id is None:
+            is_visible = True
+
         qb = (
             self._article_repo.query()
             .filter_status(filters.status)
@@ -70,6 +75,7 @@ class ArticleService(BaseService):
             .filter_author(filters.author_id)
             .filter_keywords(filters.keywords)
             .filter_text(filters.query)
+            .filter_is_visible(is_visible)
             .with_current_version()
         )
 

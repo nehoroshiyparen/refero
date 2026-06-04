@@ -30,9 +30,7 @@ export function PublicProfilePage() {
     setLoading(true)
     Promise.all([
       getUser(id),
-      getArticles({ author_id: id, status: 'PUBLISHED' }).then((list) =>
-        list.filter((a) => a.is_visible),
-      ),
+      getArticles({ author_id: id, status: 'PUBLISHED', is_visible: true }),
     ])
       .then(([u, a]) => {
         setProfile(u)

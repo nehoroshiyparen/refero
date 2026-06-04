@@ -24,7 +24,7 @@ from .schemas import (
 )
 from .models.enum import ArticleStatus
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
 @router.get(

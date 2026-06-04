@@ -33,9 +33,7 @@ export function ProfilePage() {
 
   useEffect(() => {
     if (!user) return
-    getArticles({ author_id: user.id, status: 'PUBLISHED' }).then((list) =>
-      setArticles(list.filter((a) => a.is_visible)),
-    )
+    getArticles({ author_id: user.id, status: 'PUBLISHED', is_visible: true }).then(setArticles)
   }, [user])
 
   if (!user) return <Navigate to="/login" replace />

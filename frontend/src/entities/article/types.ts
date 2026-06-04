@@ -68,6 +68,7 @@ export type ArticleFilters = {
   author_id?: string
   language?: string
   keywords?: string[]
+  is_visible?: boolean
   limit?: number
   offset?: number
 }

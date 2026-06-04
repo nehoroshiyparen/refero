@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Header } from '@/shared/ui/header'
 import { Button } from '@/shared/ui/button'
+import { withAuth } from '@/shared/api/client'
 import { getArticle, updateArticle, getArticleVersionById, uploadArticlePdf, getDownloadUrl } from '@/entities/article/api'
 import { getJournals } from '@/entities/journal/api'
 import type { ArticleFullPayload } from '@/entities/article/types'
@@ -185,7 +186,7 @@ export function EditArticlePage() {
               {pdfUrl ? (
                 <div className="flex items-center gap-2">
                   <a
-                    href={pdfUrl}
+                    href={withAuth(pdfUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring h-9 px-4 py-2 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground"
